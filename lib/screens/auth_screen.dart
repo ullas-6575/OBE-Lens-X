@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'image_source_screen.dart';
+import '../services/ocr_service.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final BaseOcrService? ocrService;
+
+  const AuthScreen({super.key, this.ocrService});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -12,8 +15,8 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   static const _ink = Color(0xFF102A43);
   static const _blue = Color(0xFF2563EB);
   static const _teal = Color(0xFF0D9488);
-  static const _demoEmail = 'demo@obelens.com';
-  static const _demoPassword = 'Lens2026!';
+  static const _demoEmail = 'alok@gmail.com';
+  static const _demoPassword = '2207';
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -74,7 +77,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const ImageSourceScreen(),
+            ImageSourceScreen(ocrService: widget.ocrService),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curved = CurvedAnimation(
             parent: animation,
@@ -103,7 +106,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             _passwordController.text != _demoPassword)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Those details do not match the demo account.'),
+          content: Text('Those details do not match the account.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -538,53 +541,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          if (!_isSignUp) ...[
-            const SizedBox(height: 21),
-            Container(
-              padding: const EdgeInsets.all(13),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F8FA),
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: const Color(0xFFE2EFF2)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded, color: _teal, size: 18),
-                  SizedBox(width: 9),
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        style: TextStyle(
-                          color: Color(0xFF536A7D),
-                          fontSize: 12,
-                          height: 1.5,
-                        ),
-                        children: [
-                          TextSpan(text: 'Demo access  '),
-                          TextSpan(
-                            text: 'demo@obelens.com',
-                            style: TextStyle(
-                              color: _ink,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          TextSpan(text: '\nPassword  '),
-                          TextSpan(
-                            text: 'Lens2026!',
-                            style: TextStyle(
-                              color: _ink,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,

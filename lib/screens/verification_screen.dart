@@ -7,14 +7,12 @@ import 'image_source_screen.dart';
 class VerificationScreen extends StatefulWidget {
   final MarksTableData marksTableData;
   final String? imagePath;
-  final Uint8List? imageBytes;
   final bool isSampleDemo;
 
   const VerificationScreen({
     super.key,
     required this.marksTableData,
     this.imagePath,
-    this.imageBytes,
     this.isSampleDemo = false,
   });
 
@@ -28,14 +26,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   late Map<String, Map<String, TextEditingController>> _controllers;
 
   static const List<String> _allQuestions = [
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8'
+    '1', '2', '3', '4', '5', '6', '7', '8'
   ];
 
   @override
@@ -174,121 +165,120 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Container(
-                  width: 66,
-                  height: 66,
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.verified_rounded,
-                    color: Colors.green,
-                    size: 42,
-                  ),
+              const SizedBox(height: 20),
+              Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.12),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  'Marks Verified & Computed!',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: const Icon(
+                  Icons.verified_rounded,
+                  color: Colors.green,
+                  size: 42,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Table ${_activeTableType == '1-4' ? 'Questions 1–4' : 'Questions 5–8'} verified. Non-numeric marks calculated as 0.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Marks Verified & Computed!',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 22),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Table ${_activeTableType == '1-4' ? 'Questions 1–4' : 'Questions 5–8'} verified. Non-numeric marks calculated as 0.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 22),
 
-                // Summary Breakdown Card
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
-                    ),
+              // Summary Breakdown Card
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant.withOpacity(0.5),
                   ),
-                  child: Column(
-                    children: [
-                      for (final q in _activeQuestions) ...[
-                        _buildSummaryRow(
-                          'Question $q Total',
-                          _formatNumber(_calculateColTotal(q)),
-                        ),
-                        const Divider(height: 14),
-                      ],
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                          horizontal: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer
-                              .withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Grand Total',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            Text(
-                              _formatNumber(grandTotal),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 20,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
+                ),
+                child: Column(
+                  children: [
+                    for (final q in _activeQuestions) ...[
+                      _buildSummaryRow(
+                        'Question $q Total',
+                        _formatNumber(_calculateColTotal(q)),
                       ),
+                      const Divider(height: 14),
                     ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Action button to scan another
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const ImageSourceScreen(),
-                        ),
-                        (route) => false,
-                      );
-                    },
-                    icon: const Icon(Icons.document_scanner_rounded),
-                    label: const Text('Scan Another Mark Sheet'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 12,
                       ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Grand Total',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          Text(
+                            _formatNumber(grandTotal),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 20,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Action button to scan another
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const ImageSourceScreen(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  icon: const Icon(Icons.document_scanner_rounded),
+                  label: const Text('Scan Another Mark Sheet'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
+        ),
+      );
       },
     );
   }
@@ -352,15 +342,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
     double? width,
     BoxFit fit = BoxFit.cover,
   }) {
-    if (widget.imageBytes != null) {
-      return Image.memory(
-        widget.imageBytes!,
-        height: height,
-        width: width,
-        fit: fit,
-      );
-    }
-
     final hasLocalFile = !kIsWeb &&
         widget.imagePath != null &&
         File(widget.imagePath!).existsSync();
@@ -443,8 +424,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest
-                              .withOpacity(0.4),
+                          color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: colorScheme.outlineVariant.withOpacity(0.4),
@@ -483,9 +463,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          widget.isSampleDemo
-                                              ? 'Sample values'
-                                              : '${(widget.marksTableData.confidenceScore * 100).toStringAsFixed(1)}% OCR Accuracy',
+                                          '${(widget.marksTableData.confidenceScore * 100).toStringAsFixed(1)}% OCR Accuracy',
                                           style: const TextStyle(
                                             color: Colors.green,
                                             fontSize: 11,
@@ -576,8 +554,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline,
-                              size: 16, color: colorScheme.primary),
+                          Icon(Icons.info_outline, size: 16, color: colorScheme.primary),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
@@ -889,8 +866,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   void _onCellEdited(String question, String part, String value) {
     final qInt = int.tryParse(question);
     if (qInt != null) {
-      final mirroredQ =
-          qInt <= 4 ? (qInt + 4).toString() : (qInt - 4).toString();
+      final mirroredQ = qInt <= 4 ? (qInt + 4).toString() : (qInt - 4).toString();
       final mirroredController = _controllers[mirroredQ]?[part];
       if (mirroredController != null && mirroredController.text != value) {
         mirroredController.text = value;
@@ -913,9 +889,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
               final val = controller?.text.trim() ?? '';
-              if (val.isEmpty ||
-                  (val.toUpperCase() != 'N/A' &&
-                      double.tryParse(val) == null)) {
+              if (val.isEmpty || (val.toUpperCase() != 'N/A' && double.tryParse(val) == null)) {
                 // If left empty or invalid, standardize to 'N/A'
                 controller?.text = 'N/A';
                 _onCellEdited(question, part, 'N/A');
@@ -943,8 +917,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             ),
             onChanged: (newVal) {
               _onCellEdited(question, part, newVal);
-              setState(
-                  () {}); // Recalculates column totals and grand total live
+              setState(() {}); // Recalculates column totals and grand total live
             },
           ),
         ),

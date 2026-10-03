@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:typed_data';
+import '../services/ocr_service.dart';
 import 'image_processing_screen.dart';
 
 class ImageSourceScreen extends StatefulWidget {
-  const ImageSourceScreen({super.key});
+  final BaseOcrService? ocrService;
+
+  const ImageSourceScreen({super.key, this.ocrService});
 
   @override
   State<ImageSourceScreen> createState() => _ImageSourceScreenState();
@@ -16,37 +18,42 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
   String _selectedTableType = '1-4'; // '1-4' or '5-8'
 
   Future<void> _pickImage(ImageSource source) async {
-    setState(() => _isLoading = true);
     try {
-      final image = await _picker.pickImage(source: source, imageQuality: 92);
+      setState(() => _isLoading = true);
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 92,
+      );
+
       if (!mounted) return;
-      if (image == null) return;
-      final imageBytes = await image.readAsBytes();
+      setState(() => _isLoading = false);
+
+      if (pickedFile != null) {
+        _navigateToProcessing(imagePath: pickedFile.path);
+      }
+    } catch (e) {
       if (!mounted) return;
-      _navigateToProcessing(imageBytes);
-    } catch (error) {
-      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not ${source == ImageSource.camera ? 'open camera' : 'select image'}: $error',
+            'Could not access ${source == ImageSource.camera ? 'camera' : 'gallery'}: $e',
           ),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _navigateToProcessing(Uint8List imageBytes) {
+  void _navigateToProcessing({String? imagePath}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             ImageProcessingScreen(
+          imagePath: imagePath,
           tableType: _selectedTableType,
-          imageBytes: imageBytes,
+          ocrService: widget.ocrService,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curve =
@@ -198,10 +205,11 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
               ),
               const SizedBox(height: 14),
 
+              // ONLY Button 1: Camera Action Button Card
               _ActionCard(
                 icon: Icons.camera_alt_rounded,
                 title: 'Capture Mark Sheet',
-                subtitle: 'Take a photo with your camera',
+                subtitle: 'Photograph handwritten mark table with camera',
                 buttonText: 'Open Camera',
                 gradientColors: [
                   colorScheme.primaryContainer,
@@ -214,10 +222,11 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
 
               const SizedBox(height: 16),
 
+              // ONLY Button 2: Gallery Action Button Card
               _ActionCard(
                 icon: Icons.photo_library_rounded,
                 title: 'Upload Table Image',
-                subtitle: 'Choose an image from your gallery',
+                subtitle: 'Choose an existing marksheet photo from gallery',
                 buttonText: 'Browse Gallery',
                 gradientColors: [
                   colorScheme.surfaceContainerHighest,
@@ -320,30 +329,10 @@ class _ActionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    buttonText,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  if (isLoading)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                ],
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ),

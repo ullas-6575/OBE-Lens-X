@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:my_app/main.dart';
+import 'package:my_app/app.dart';
 import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/image_processing_screen.dart';
 import 'package:my_app/screens/verification_screen.dart';
+import 'package:my_app/screens/image_source_screen.dart';
+import 'package:my_app/services/ocr_service.dart';
 
 void main() {
   testWidgets(
       'Screen 1 has ONLY the 2 scan method buttons and table type selector',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MarkSheetApp());
+    const service = MockOcrService(stepDuration: Duration.zero);
+    await tester.pumpWidget(const MarkSheetApp(ocrService: service));
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);
@@ -23,6 +26,11 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Screen 1 title and header
+    expect(
+        tester
+            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
+            .ocrService,
+        same(service));
     expect(find.text('MarkSheet OCR'), findsOneWidget);
     expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
 
@@ -33,8 +41,6 @@ void main() {
     // Verify ONLY the two scan action buttons exist
     expect(find.text('Capture Mark Sheet'), findsOneWidget);
     expect(find.text('Upload Table Image'), findsOneWidget);
-    expect(find.text('Open Camera'), findsOneWidget);
-    expect(find.text('Browse Gallery'), findsOneWidget);
 
     // Verify previous demo button is gone
     expect(find.text('Try with Sample Marks Table (Demo)'), findsNothing);
@@ -43,7 +49,8 @@ void main() {
   testWidgets('Sign up opens the home screen without a database', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const MarkSheetApp());
+    const service = MockOcrService(stepDuration: Duration.zero);
+    await tester.pumpWidget(const MarkSheetApp(ocrService: service));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Sign up').first);
@@ -60,29 +67,39 @@ void main() {
     await tester.tap(createAccountButton);
     await tester.pumpAndSettle();
 
+    expect(
+        tester
+            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
+            .ocrService,
+        same(service));
     expect(find.text('MarkSheet OCR'), findsOneWidget);
     expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
   });
 
-  testWidgets('Sample preview opens mark review without OCR', (
-    WidgetTester tester,
-  ) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: ImageProcessingScreen()),
+  testWidgets(
+      'Processing uses OCR results and automatically opens verification',
+      (WidgetTester tester) async {
+    final data = MarksTableData.empty(tableType: '5-8').copyWith(
+      cellMarks: {
+        '5': {'a': '42'}
+      },
     );
+    await tester.pumpWidget(MaterialApp(
+      home: ImageProcessingScreen(
+        tableType: '5-8',
+        ocrService: MockOcrService(
+          stepDuration: Duration.zero,
+          overrideData: data,
+        ),
+      ),
+    ));
     await tester.pumpAndSettle();
 
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Marksheet Preview'), findsOneWidget);
-    expect(find.text('Image preview ready'), findsWidgets);
-    await tester.tap(find.text('Review Marks'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Verify Handwritten Marks'), findsOneWidget);
-    expect(find.text('30'), findsWidgets);
+    final screen =
+        tester.widget<VerificationScreen>(find.byType(VerificationScreen));
+    expect(screen.marksTableData, same(data));
+    expect(screen.isSampleDemo, isFalse);
+    expect(find.text('42'), findsWidgets);
   });
 
   testWidgets(
@@ -224,4 +241,37 @@ void main() {
     expect(find.text('Marks Verified & Computed!'), findsOneWidget);
     expect(find.text('Scan Another Mark Sheet'), findsOneWidget);
   });
+  for (final tableType in ['1-4', '5-8']) {
+    testWidgets('Default processing opens an editable empty $tableType table',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: ImageProcessingScreen(tableType: tableType),
+      ));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+
+      final screen =
+          tester.widget<VerificationScreen>(find.byType(VerificationScreen));
+      expect(screen.marksTableData.tableType, tableType);
+      expect(screen.marksTableData.grandTotal, 0);
+      expect(screen.marksTableData.confidenceScore, 0);
+      expect(
+          screen.marksTableData.cellMarks.values
+              .expand((column) => column.values),
+          everyElement('N/A'));
+      await tester.enterText(find.byType(TextField).first, '12');
+      await tester.pumpAndSettle();
+      expect(find.text('12'), findsWidgets);
+      final submit = find.text('Verify & Submit');
+      await tester.ensureVisible(submit);
+      await tester.tap(submit);
+      await tester.pumpAndSettle();
+      expect(find.text('Marks Verified & Computed!'), findsOneWidget);
+      await tester.tap(find.text('Scan Another Mark Sheet'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ImageSourceScreen), findsOneWidget);
+    });
+  }
 }
