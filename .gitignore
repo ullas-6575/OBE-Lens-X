@@ -41,3 +41,25 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Python OCR training artifacts
+.venv/
+__pycache__/
+*.egg-info/
+recognition/checkpoints/
+
+# New isolated OCR datasets and generated models
+models/*.pth
+models/*_checkpoints/
+models/*_report.json
+data/*
+!data/README.md
+!data/train/
+!data/val/
+!data/test/
+!data/corrections/
+data/train/*
+data/val/*
+data/test/*
+data/corrections/*
+!data/**/.gitkeep
