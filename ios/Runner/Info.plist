@@ -43,6 +43,10 @@
 	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Capture a marksheet image for the in-app preview.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Select a marksheet image for the in-app preview.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 </dict>

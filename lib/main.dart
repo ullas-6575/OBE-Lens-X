@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'screens/image_source_screen.dart';
-import 'services/ocr_service.dart';
+import 'screens/auth_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,9 +8,7 @@ void main() {
 }
 
 class MarkSheetApp extends StatelessWidget {
-  final BaseOcrService? ocrService;
-
-  const MarkSheetApp({super.key, this.ocrService});
+  const MarkSheetApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +84,7 @@ class MarkSheetApp extends StatelessWidget {
           ),
         ),
       ),
-      home: ImageSourceScreen(ocrService: ocrService),
+      home: const AuthScreen(),
     );
   }
 }

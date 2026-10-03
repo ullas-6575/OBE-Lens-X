@@ -1,16 +1,25 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/main.dart';
 import 'package:my_app/models/marks_table_data.dart';
+import 'package:my_app/screens/image_processing_screen.dart';
 import 'package:my_app/screens/verification_screen.dart';
-import 'package:my_app/services/ocr_service.dart';
 
 void main() {
   testWidgets(
       'Screen 1 has ONLY the 2 scan method buttons and table type selector',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MarkSheetApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Welcome back'), findsOneWidget);
+
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'demo@obelens.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'Lens2026!');
+    await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
     await tester.pumpAndSettle();
 
     // Verify Screen 1 title and header
@@ -24,9 +33,56 @@ void main() {
     // Verify ONLY the two scan action buttons exist
     expect(find.text('Capture Mark Sheet'), findsOneWidget);
     expect(find.text('Upload Table Image'), findsOneWidget);
+    expect(find.text('Open Camera'), findsOneWidget);
+    expect(find.text('Browse Gallery'), findsOneWidget);
 
     // Verify previous demo button is gone
     expect(find.text('Try with Sample Marks Table (Demo)'), findsNothing);
+  });
+
+  testWidgets('Sign up opens the home screen without a database', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const MarkSheetApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign up').first);
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Demo User');
+    await tester.enterText(fields.at(1), 'new.user@example.com');
+    await tester.enterText(fields.at(2), 'password123');
+    await tester.enterText(fields.at(3), 'password123');
+    final createAccountButton =
+        find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(createAccountButton);
+    await tester.tap(createAccountButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('MarkSheet OCR'), findsOneWidget);
+    expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
+  });
+
+  testWidgets('Sample preview opens mark review without OCR', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: ImageProcessingScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Marksheet Preview'), findsOneWidget);
+    expect(find.text('Image preview ready'), findsWidgets);
+    await tester.tap(find.text('Review Marks'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Verify Handwritten Marks'), findsOneWidget);
+    expect(find.text('30'), findsWidgets);
   });
 
   testWidgets(
@@ -35,14 +91,78 @@ void main() {
     // Dynamic data with Q5-Q8 marks matching user's rubric
     final testData = MarksTableData.empty(tableType: '5-8').copyWith(
       cellMarks: {
-        '5': {'a': '10', 'b': '13', 'c': '07', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '6': {'a': 'N/A', 'b': 'N/A', 'c': 'N/A', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '7': {'a': '12', 'b': '04', 'c': '06', 'd': '08', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '8': {'a': '09', 'b': '05', 'c': '17', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '1': {'a': '10', 'b': '13', 'c': '07', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '2': {'a': 'N/A', 'b': 'N/A', 'c': 'N/A', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '3': {'a': '12', 'b': '04', 'c': '06', 'd': '08', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
-        '4': {'a': '09', 'b': '05', 'c': '17', 'd': 'N/A', 'e': 'N/A', 'f': 'N/A', 'g': 'N/A'},
+        '5': {
+          'a': '10',
+          'b': '13',
+          'c': '07',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '6': {
+          'a': 'N/A',
+          'b': 'N/A',
+          'c': 'N/A',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '7': {
+          'a': '12',
+          'b': '04',
+          'c': '06',
+          'd': '08',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '8': {
+          'a': '09',
+          'b': '05',
+          'c': '17',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '1': {
+          'a': '10',
+          'b': '13',
+          'c': '07',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '2': {
+          'a': 'N/A',
+          'b': 'N/A',
+          'c': 'N/A',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '3': {
+          'a': '12',
+          'b': '04',
+          'c': '06',
+          'd': '08',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
+        '4': {
+          'a': '09',
+          'b': '05',
+          'c': '17',
+          'd': 'N/A',
+          'e': 'N/A',
+          'f': 'N/A',
+          'g': 'N/A'
+        },
       },
     );
 
@@ -103,47 +223,5 @@ void main() {
     // Verify Success Modal
     expect(find.text('Marks Verified & Computed!'), findsOneWidget);
     expect(find.text('Scan Another Mark Sheet'), findsOneWidget);
-  });
-
-  test('TesseractOcrService dynamically extracts marks via Tesseract with zero static data', () async {
-    final available = await TesseractOcrService.isTesseractAvailable();
-    expect(available, isTrue);
-
-    const service = TesseractOcrService(stepDuration: Duration.zero);
-    final data = await service.processImage(
-      imagePath: 'assets/sample_marksheet.png',
-      tableType: '1-4',
-    );
-
-    // Ensure data is dynamically extracted
-    expect(data.tableType, '1-4');
-    expect(data.questions, ['1', '2', '3', '4']);
-    expect(data.cellMarks, isNotEmpty);
-    // Dynamic totals must be computed numbers
-    expect(data.grandTotal, isNotNull);
-    expect(data.grandTotal, isA<double>());
-  });
-
-  test('TesseractOcrService dynamically extracts new photo marks without static data', () async {
-    const photoPath =
-        '/home/ullas-biswas-shontu/.gemini/antigravity-ide/brain/3d35ecdb-4015-4913-9f94-d158a6e225a0/.user_uploaded/media_1790111088357.jpg';
-    if (File(photoPath).existsSync()) {
-      const service = TesseractOcrService(stepDuration: Duration.zero);
-      final data = await service.processImage(
-        imagePath: photoPath,
-        tableType: '5-8',
-      );
-
-      expect(data.tableType, '5-8');
-      expect(data.questions, ['5', '6', '7', '8']);
-      // Verify extracted marks from the user's handwritten rubric read by Tesseract
-      expect(data.getMark('7', 'b'), '04');
-      expect(data.getMark('8', 'b'), '05');
-      expect(data.getMark('5', 'c'), '07');
-      // Blank column 6 has N/A
-      expect(data.getMark('6', 'a'), 'N/A');
-      expect(data.getMark('6', 'b'), 'N/A');
-      expect(data.grandTotal, isNotNull);
-    }
   });
 }
