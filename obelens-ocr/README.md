@@ -68,12 +68,20 @@ Use one complete, roughly upright table that fills most of the photograph, with
 visible ruled borders. The app's selected Q1–Q4 or Q5–Q8 group determines column
 identities; printed question headers are not recognized separately.
 
-OpenCV locates long table edges, computes a perspective transform, then uses
-morphological line extraction to find cell boundaries. It requires exactly six
-vertical and ten horizontal borders and fails explicitly on unsupported/broken
-grids instead of inventing row positions. Automatic extraction handles moderate
-perspective; severe rotation, curved pages, missing borders and multiple tables
-are outside this baseline. The Python API/CLI also accept four explicit corners
+OpenCV registers detected full or partial lines against normalized OBE layouts,
+with connected quadrilateral contours as a localization fallback. Short edges
+of the Grand Total extension are excluded from the main-grid geometry. The
+main rubric is perspective-warped to a fixed 1000 × 1400 area, then the 28 marks
+are cropped using normalized reference coordinates. Visible internal lines can
+refine those coordinates; missing or extra lines are not fatal. Both question
+groups use the same geometry and retain their selected question identities.
+
+Localization needs aggregate grid evidence (at least three vertical and four
+horizontal template positions), rather than every outer/internal border. A
+missing outer edge can be estimated from the remaining lines. If no candidate
+has enough alignment evidence, extraction requests a clearer scan. Moderate
+perspective is supported; severe rotation, curved pages and multiple tables
+remain limitations. The Python API/CLI also accept four explicit corners
 (TL,TR,BR,BL) in the EXIF-oriented source-image coordinate system.
 
 Cells are inset from borders, retain their original-image bounds, and preserve

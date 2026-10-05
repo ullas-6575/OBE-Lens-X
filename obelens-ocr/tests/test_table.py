@@ -52,13 +52,63 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(np.count_nonzero(cells[1].image < 100),0)
         self.assertEqual(len(extract_cells(skewed,corners=target).cells),28)
 
-    def test_missing_line_rejected(self):
+    def test_missing_internal_lines_are_inferred(self):
         image = grid()
         image[305:316,45:556] = 255
-        with self.assertRaises(ExtractionError):
-            extract_cells(image)
-        with self.assertRaises(ExtractionError):
-            extract_cells(np.full((400,400,3),255,np.uint8))
+        image[465:476,45:556] = 255
+        image[45:796,245:256] = 255
+        image[45:796,445:456] = 255
+        cells = extract_cells(image).cells
+        self.assertEqual(len(cells),28)
+        reference = extract_cells(grid()).cells
+        for actual, expected in zip(cells, reference):
+            np.testing.assert_allclose(actual.bounds, expected.bounds, atol=4)
+        self.assertGreater(np.count_nonzero(cells[0].image < 100),100)
+        self.assertEqual(np.count_nonzero(cells[1].image < 100),0)
+
+    def test_partial_edges_and_grand_total_extension(self):
+        image = grid()
+        cv2.rectangle(image,(550,630),(635,790),(0,0,0),2)
+        image[45:796,545:556] = 255
+        image[45:56,45:640] = 255
+        image[305:316,45:556] = 255
+        cells = extract_cells(image,table_type='5-8').cells
+        self.assertEqual(len(cells),28)
+        reference = extract_cells(grid(),table_type='5-8').cells
+        for actual,expected in zip(cells,reference):
+            np.testing.assert_allclose(actual.bounds,expected.bounds,atol=8)
+        self.assertGreater(np.count_nonzero(cells[0].image < 100),100)
+
+    def test_extra_internal_line_is_not_fatal(self):
+        image = grid()
+        image[305:316,45:556] = 255
+        cv2.line(image,(50,280),(550,280),(0,0,0),2)
+        self.assertEqual(len(extract_cells(image).cells),28)
+
+    def test_absent_or_unrelated_geometry_rejected(self):
+        blank = np.full((400,400,3),255,np.uint8)
+        rectangle = blank.copy()
+        cv2.rectangle(rectangle,(40,40),(360,360),(0,0,0),2)
+        for image in [blank,rectangle]:
+            with self.assertRaises(ExtractionError):
+                extract_cells(image)
+
+    def test_partial_grid_under_perspective(self):
+        image = grid()
+        image[45:56,45:556] = 255
+        image[45:796,545:556] = 255
+        source = np.float32([[50,50],[550,50],[550,790],[50,790]])
+        target = np.float32([[100,55],[590,95],[545,805],[50,770]])
+        transform = cv2.getPerspectiveTransform(source,target)
+        skewed = cv2.warpPerspective(image,transform,(650,850),borderValue=(255,255,255))
+        cells = extract_cells(skewed).cells
+        self.assertEqual(len(cells),28)
+        self.assertGreater(np.count_nonzero(cells[0].image < 100),100)
+        expected = cv2.perspectiveTransform(np.float32([[[150,150],[250,150],
+                                                        [250,230],[150,230]]]),transform)[0]
+        bounds = [expected[:,0].min(),expected[:,1].min(),
+                  expected[:,0].max(),expected[:,1].max()]
+        np.testing.assert_allclose(cells[0].bounds,bounds,atol=12)
 
     def test_payload_crop_and_review(self):
         payload = process_table(SAMPLE,MarkRecognizer(backend=Backend()))
