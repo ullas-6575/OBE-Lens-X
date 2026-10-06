@@ -19,9 +19,9 @@ void main() {
 
     await tester.enterText(
       find.byType(TextFormField).at(0),
-      'demo@obelens.com',
+      'alok@gmail.com',
     );
-    await tester.enterText(find.byType(TextFormField).at(1), 'Lens2026!');
+    await tester.enterText(find.byType(TextFormField).at(1), '2207');
     await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
     await tester.pumpAndSettle();
 
@@ -245,7 +245,8 @@ void main() {
     testWidgets('Default processing opens an editable empty $tableType table',
         (WidgetTester tester) async {
       await tester.pumpWidget(MaterialApp(
-        home: ImageProcessingScreen(tableType: tableType),
+        home: ImageProcessingScreen(
+            tableType: tableType, ocrService: const PlaceholderOcrService()),
       ));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));

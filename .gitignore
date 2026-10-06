@@ -10,6 +10,39 @@
 .svn/
 migrate_working_dir/
 
+# Local tool and operating-system metadata
+.metadata
+.codex/
+.agents/
+Thumbs.db
+Desktop.ini
+._*
+
+# Local environment secrets (keep shareable templates)
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+.aws/
+.ssh/
+credentials.json
+service-account*.json
+service_account*.json
+*-firebase-adminsdk-*.json
+
+# Private keys and application signing material
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+key.properties
+local.properties
+id_rsa
+id_ed25519
+
 # IntelliJ related
 *.iml
 *.ipr
@@ -63,3 +96,14 @@ data/val/*
 data/test/*
 data/corrections/*
 !data/**/.gitkeep
+
+# Paddle OCR inputs, models and reports
+obelens-ocr/data/**
+!obelens-ocr/data/**/
+!obelens-ocr/data/**/.gitkeep
+obelens-ocr/models/**
+!obelens-ocr/models/**/
+!obelens-ocr/models/**/.gitkeep
+obelens-ocr/outputs/**
+!obelens-ocr/outputs/**/
+!obelens-ocr/outputs/**/.gitkeep

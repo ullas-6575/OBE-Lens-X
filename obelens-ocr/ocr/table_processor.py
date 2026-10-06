@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from .preprocessing import ImageInput
+from .validation import numeric_mark
 
 PARTS = tuple('abcdefg')
 TABLE_QUESTIONS = {'1-4': ('1', '2', '3', '4'), '5-8': ('5', '6', '7', '8')}
@@ -22,7 +23,7 @@ def process_cells(cells, recognizer, *, table_type='1-4', image_path=None):
     if table_type not in TABLE_QUESTIONS:
         raise ValueError('table_type must be 1-4 or 5-8')
     questions = TABLE_QUESTIONS[table_type]
-    cell_marks = {question: {part: '' for part in PARTS} for question in questions}
+    cell_marks = {question: {part: 'N/A' for part in PARTS} for question in questions}
     details = {question: {part: {'text': '', 'value': None, 'confidence': 0.0,
                                'valid': False, 'needs_review': True, 'reason': 'cell_not_supplied'}
                          for part in PARTS} for question in questions}
@@ -35,11 +36,12 @@ def process_cells(cells, recognizer, *, table_type='1-4', image_path=None):
             raise ValueError(f'Duplicate cell: {key}')
         seen.add(key)
         prediction = recognizer.predict_mark(cell.image, max_mark=cell.max_mark)
-        # Confidence and validation are advisory: never hide the best OCR text.
-        cell_marks[cell.question][cell.part] = (
-            'N/A' if prediction.get('empty', False)
-            else prediction['text'].strip() or '?'
-        )
+        # Only whole numeric marks enter the table. Preserve raw OCR evidence
+        # in details; an unreadable inked cell must not become a guessed digit.
+        empty = prediction.get('empty', False) or prediction.get('reason') == 'empty_cell'
+        mark = numeric_mark(prediction['text'])
+        cell_marks[cell.question][cell.part] = 'N/A' if empty else mark or 'N/A'
+        prediction['needs_review'] = not empty and (prediction['needs_review'] or mark is None)
         detail = {**prediction, 'max_mark': cell.max_mark, 'bounds': cell.bounds,
                   'crop_path': str(cell.image) if isinstance(cell.image, (str, Path)) else None}
         details[cell.question][cell.part] = detail

@@ -4,15 +4,24 @@ from numbers import Integral
 import re
 
 
+def numeric_mark(text):
+    """Keep complete one/two-digit marks; never guess or strip letters."""
+    if not isinstance(text, str):
+        return None
+    text = text.strip()
+    return text if re.fullmatch(r'[0-9]{1,2}', text) else None
+
+
 def validate_mark(predicted_text, max_mark=None):
     if max_mark is not None and (isinstance(max_mark, bool) or
                                 not isinstance(max_mark, Integral) or max_mark < 0):
         raise ValueError('max_mark must be a nonnegative integer or None')
     result = {'text': predicted_text, 'value': None, 'valid': False, 'reason': None}
-    if not isinstance(predicted_text, str) or re.fullmatch(r'[0-9]{1,2}', predicted_text) is None:
+    mark = numeric_mark(predicted_text)
+    if mark is None:
         result['reason'] = 'expected_one_or_two_digits'
         return result
-    value = int(predicted_text)
+    value = int(mark)
     if max_mark is not None and value > max_mark:
         result['reason'] = 'mark_exceeds_maximum'
         return result

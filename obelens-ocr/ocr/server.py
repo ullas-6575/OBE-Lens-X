@@ -10,6 +10,8 @@ from PIL import Image, UnidentifiedImageError
 from .config import RecognitionConfig
 from .paddle_recognizer import MarkRecognizer
 from .full_table import process_table
+from .cell_extractor import detect_corners, ExtractionError
+from .table_selection import orient_image
 
 MAX_BODY = 16 * 1024 * 1024
 
@@ -33,7 +35,7 @@ def make_handler(recognizer, token=''):
                          {'status': 'ok', 'model': recognizer.config.model_name} if self.path == '/health' else {'error': 'Not found'})
 
         def do_POST(self):
-            if self.path != '/ocr/table':
+            if self.path not in ('/ocr/table', '/ocr/detect'):
                 self.respond(404, {'error': 'Not found'}); return
             if token and self.headers.get('Authorization') != f'Bearer {token}':
                 self.respond(401, {'error': 'Unauthorized'}); return
@@ -48,9 +50,19 @@ def make_handler(recognizer, token=''):
                 with Image.open(io.BytesIO(raw)) as image:
                     if image.width * image.height > 25_000_000:
                         raise ValueError('Image exceeds 25 megapixels')
-                    payload = process_table(image, recognizer,
-                        table_type=request.get('table_type', '1-4'),
-                        corners=request.get('corners'), max_mark=request.get('max_mark'))
+                    rotation = request.get('rotation', 0)
+                    if self.path == '/ocr/detect':
+                        source = orient_image(image, rotation)
+                        try:
+                            payload = {'detected': True, 'normalized_corners': detect_corners(source)}
+                        except ExtractionError:
+                            payload = {'detected': False, 'normalized_corners': None}
+                        payload.update(rotation=rotation, width=source.shape[1], height=source.shape[0])
+                    else:
+                        payload = process_table(image, recognizer,
+                            table_type=request.get('table_type', '1-4'),
+                            corners=request.get('corners'), max_mark=request.get('max_mark'),
+                            rotation=rotation, normalized_corners=request.get('normalized_corners'))
                 self.respond(200, payload)
             except (ValueError, KeyError, TypeError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
                 self.respond(422, {'error': str(exc)})

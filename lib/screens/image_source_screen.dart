@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ocr_service.dart';
-import 'image_processing_screen.dart';
+import 'table_crop_screen.dart';
 
 class ImageSourceScreen extends StatefulWidget {
   final BaseOcrService? ocrService;
@@ -29,7 +29,7 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
       setState(() => _isLoading = false);
 
       if (pickedFile != null) {
-        _navigateToProcessing(imagePath: pickedFile.path);
+        _navigateToCrop(imagePath: pickedFile.path);
       }
     } catch (e) {
       if (!mounted) return;
@@ -46,11 +46,11 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
     }
   }
 
-  void _navigateToProcessing({String? imagePath}) {
+  void _navigateToCrop({required String imagePath}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            ImageProcessingScreen(
+            TableCropScreen(
           imagePath: imagePath,
           tableType: _selectedTableType,
           ocrService: widget.ocrService,

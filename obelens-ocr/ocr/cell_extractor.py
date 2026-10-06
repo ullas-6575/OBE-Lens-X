@@ -177,7 +177,7 @@ def _positions(mask, axis, minimum):
     return [int(round(float(g.mean()))) for g in groups if len(g)]
 
 
-def _align_template(corrected):
+def _align_template(corrected, *, manual=False):
     """Choose a known layout using aggregate evidence, then snap visible borders."""
     binary = _binary(corrected)
     h,w = binary.shape
@@ -205,11 +205,27 @@ def _align_template(corrected):
             axes.append(np.rint(borders).astype(int).tolist())
             counts.append(matches)
         # This validates localization, rather than requiring every internal line.
-        if counts[0]>=3 and counts[1]>=4 and (best is None or score>best[0]):
+        if (manual or (counts[0]>=3 and counts[1]>=4)) and (best is None or score>best[0]):
             best = score,*axes
     if best is None:
         raise ExtractionError('Insufficient evidence to localize the main marks table.')
     return best
+
+
+def detect_corners(image):
+    """Locate only; do not load the recognizer or run OCR."""
+    source = prepare_cell(image)
+    h, w = source.shape[:2]
+    scale = min(1., 2000 / max(h, w))
+    working = cv2.resize(source, None, fx=scale, fy=scale) if scale < 1 else source
+    _, points, _ = rectify(working)
+    points = np.asarray(points) / scale
+    # Line fitting can extrapolate a few pixels past a photographed border.
+    # Snap only this small tolerance; larger excursions need manual selection.
+    extent = np.array([w - 1, h - 1])
+    if np.any(points < -.02 * extent) or np.any(points > 1.02 * extent):
+        raise ExtractionError('The table reaches outside the photograph. Adjust the corners or retake the photo.')
+    return (np.clip(points, 0, extent) / extent).tolist()
 
 
 def extract_cells(image, *, table_type='1-4', corners=None, max_mark=None):
@@ -223,7 +239,9 @@ def extract_cells(image, *, table_type='1-4', corners=None, max_mark=None):
     corrected, points, transform = rectify(working, scaled_corners)
     transform = transform @ np.diag([scale, scale, 1.])
     points = (np.asarray(points)/scale).tolist()
-    _,xs,ys = _align_template(corrected)
+    # User-supplied corners establish the main rectangle even when borders are
+    # too faint for automatic localization. Visible lines still refine it.
+    _,xs,ys = _align_template(corrected, manual=corners is not None)
     if min(np.diff(xs)) < 15 or min(np.diff(ys)) < 15:
         raise ExtractionError('Cells are too small to read reliably')
     cells = []
