@@ -2,18 +2,21 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
+import '../widgets/edit_mark_dialog.dart';
 import 'image_source_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
   final MarksTableData marksTableData;
   final String? imagePath;
   final bool isSampleDemo;
+  final int imageRotation;
 
   const VerificationScreen({
     super.key,
     required this.marksTableData,
     this.imagePath,
     this.isSampleDemo = false,
+    this.imageRotation = 0,
   });
 
   @override
@@ -21,12 +24,29 @@ class VerificationScreen extends StatefulWidget {
 }
 
 class _VerificationScreenState extends State<VerificationScreen> {
+  final Set<String> _edited = {};
+
+  bool _isFlagged(String q, String p) {
+    final result = widget.marksTableData.cellResults[q]?[p];
+    return result != null &&
+        result.needsAttention &&
+        !result.teacherReviewed &&
+        !_edited.contains('$q:$p');
+  }
+
   late String _activeTableType; // '1-4' or '5-8'
   late List<String> _activeQuestions;
   late Map<String, Map<String, TextEditingController>> _controllers;
 
   static const List<String> _allQuestions = [
-    '1', '2', '3', '4', '5', '6', '7', '8'
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8'
   ];
 
   @override
@@ -98,6 +118,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   void _resetToDetected() {
     setState(() {
+      _edited.clear();
       for (final q in _allQuestions) {
         for (final p in MarksTableData.parts) {
           final val = widget.marksTableData.getMark(q, p);
@@ -112,6 +133,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       for (final q in _activeQuestions) {
         for (final p in MarksTableData.parts) {
           _controllers[q]![p]?.text = 'N/A';
+          _edited.add('$q:$p');
         }
       }
     });
@@ -123,8 +145,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       updatedMarks[q] = {};
       for (final p in MarksTableData.parts) {
         final raw = _controllers[q]?[p]?.text.trim() ?? '';
-        final isNumeric = double.tryParse(raw) != null;
-        updatedMarks[q]![p] = isNumeric ? raw : 'N/A';
+        updatedMarks[q]![p] = MarksTableData.normalizeMark(raw);
       }
     }
 
@@ -132,6 +153,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       tableType: _activeTableType,
       questions: _activeQuestions,
       cellMarks: updatedMarks,
+      cellResults: widget.marksTableData.cellResults.map((q, parts) => MapEntry(
+          q,
+          parts.map((p, result) => MapEntry(
+              p, _edited.contains('$q:$p') ? result.reviewed() : result)))),
       isVerified: true,
     );
 
@@ -165,120 +190,121 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-              const SizedBox(height: 20),
-              Container(
-                width: 66,
-                height: 66,
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.verified_rounded,
-                  color: Colors.green,
-                  size: 42,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Marks Verified & Computed!',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Table ${_activeTableType == '1-4' ? 'Questions 1–4' : 'Questions 5–8'} verified. Non-numeric marks calculated as 0.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 22),
-
-              // Summary Breakdown Card
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                const SizedBox(height: 20),
+                Container(
+                  width: 66,
+                  height: 66,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.verified_rounded,
+                    color: Colors.green,
+                    size: 42,
                   ),
                 ),
-                child: Column(
-                  children: [
-                    for (final q in _activeQuestions) ...[
-                      _buildSummaryRow(
-                        'Question $q Total',
-                        _formatNumber(_calculateColTotal(q)),
+                const SizedBox(height: 14),
+                Text(
+                  'Marks Verified & Computed!',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Table ${_activeTableType == '1-4' ? 'Questions 1–4' : 'Questions 5–8'} verified. Non-numeric marks calculated as 0.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 22),
+
+                // Summary Breakdown Card
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      for (final q in _activeQuestions) ...[
+                        _buildSummaryRow(
+                          'Question $q Total',
+                          _formatNumber(_calculateColTotal(q)),
+                        ),
+                        const Divider(height: 14),
+                      ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer
+                              .withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Grand Total',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            Text(
+                              _formatNumber(grandTotal),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 20,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Divider(height: 14),
                     ],
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Grand Total',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                          Text(
-                            _formatNumber(grandTotal),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 20,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Action button to scan another
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (context) => const ImageSourceScreen(),
+                // Action button to scan another
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const ImageSourceScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                    icon: const Icon(Icons.document_scanner_rounded),
+                    label: const Text('Scan Another Mark Sheet'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      (route) => false,
-                    );
-                  },
-                  icon: const Icon(Icons.document_scanner_rounded),
-                  label: const Text('Scan Another Mark Sheet'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
+        );
       },
     );
   }
@@ -347,11 +373,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
         File(widget.imagePath!).existsSync();
 
     if (hasLocalFile) {
-      return Image.file(
-        File(widget.imagePath!),
+      return SizedBox(
         height: height,
         width: width,
-        fit: fit,
+        child: RotatedBox(
+          quarterTurns: widget.imageRotation ~/ 90,
+          child: Image(
+            image: ResizeImage(FileImage(File(widget.imagePath!)),
+                width: 2048, height: 2048, policy: ResizeImagePolicy.fit),
+            fit: fit,
+          ),
+        ),
       );
     }
 
@@ -424,7 +456,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest.withOpacity(0.4),
+                          color: colorScheme.surfaceContainerHighest
+                              .withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: colorScheme.outlineVariant.withOpacity(0.4),
@@ -463,7 +496,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '${(widget.marksTableData.confidenceScore * 100).toStringAsFixed(1)}% OCR Accuracy',
+                                          '${(widget.marksTableData.confidenceScore * 100).toStringAsFixed(1)}% model confidence',
                                           style: const TextStyle(
                                             color: Colors.green,
                                             fontSize: 11,
@@ -501,6 +534,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                     const SizedBox(height: 16),
 
+                    if (widget.marksTableData.cellResults.isNotEmpty) ...[
+                      const Text(
+                          'Review the table and tap only marks you want to change. Flags are optional hints.',
+                          key: ValueKey('review-summary')),
+                      const SizedBox(height: 12),
+                    ],
+
                     // Table Type Switcher (Questions 1–4 vs Questions 5–8)
                     Row(
                       children: [
@@ -524,9 +564,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               ),
                             ],
                             selected: {_activeTableType},
-                            onSelectionChanged: (val) {
-                              _switchTableType(val.first);
-                            },
+                            onSelectionChanged:
+                                widget.marksTableData.cellResults.isNotEmpty
+                                    ? null
+                                    : (val) {
+                                        _switchTableType(val.first);
+                                      },
                             style: ButtonStyle(
                               visualDensity: VisualDensity.compact,
                               shape: WidgetStateProperty.all(
@@ -554,11 +597,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, size: 16, color: colorScheme.primary),
+                          Icon(Icons.info_outline,
+                              size: 16, color: colorScheme.primary),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Non-numeric or empty marks are N/A (calculated as 0).',
+                              'Numbers only. Empty cells show N/A. Warnings mark uncertain readings.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.primary,
@@ -863,18 +907,53 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 
-  void _onCellEdited(String question, String part, String value) {
-    final qInt = int.tryParse(question);
-    if (qInt != null) {
-      final mirroredQ = qInt <= 4 ? (qInt + 4).toString() : (qInt - 4).toString();
-      final mirroredController = _controllers[mirroredQ]?[part];
-      if (mirroredController != null && mirroredController.text != value) {
-        mirroredController.text = value;
-      }
-    }
+  Future<void> _editCell(
+      String question, String part, CellOcrResult result) async {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final value = await showDialog<String>(
+        context: context,
+        builder: (_) => EditMarkDialog(
+            question: question,
+            part: part,
+            value: _controllers[question]![part]!.text,
+            result: result));
+    if (!mounted || value == null) return;
+    setState(() {
+      _controllers[question]![part]!.text = value;
+      _edited.add('$question:$part');
+    });
   }
 
   Widget _buildEditableCell(String question, String part) {
+    final result = widget.marksTableData.cellResults[question]?[part];
+    if (result != null) {
+      final flagged = _isFlagged(question, part);
+      return Expanded(
+          child: Tooltip(
+        message: 'Edit question $question, part $part',
+        child: InkWell(
+          key: ValueKey('edit-$question-$part'),
+          onTap: () => _editCell(question, part, result),
+          child: Container(
+            height: 38,
+            decoration: BoxDecoration(
+                color: flagged ? Colors.amber.shade100 : null,
+                border: Border.all(color: Colors.black87, width: .6)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Flexible(
+                  child: Text(_controllers[question]![part]!.text,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600))),
+              if (flagged) ...[
+                const SizedBox(width: 2),
+                const Icon(Icons.warning_amber_rounded,
+                    size: 13, color: Colors.brown),
+              ],
+            ]),
+          ),
+        ),
+      ));
+    }
     final controller = _controllers[question]?[part];
     final currentText = controller?.text.trim() ?? '';
     final isNA = currentText.isEmpty || currentText.toUpperCase() == 'N/A';
@@ -889,10 +968,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
               final val = controller?.text.trim() ?? '';
-              if (val.isEmpty || (val.toUpperCase() != 'N/A' && double.tryParse(val) == null)) {
+              if (val.isEmpty ||
+                  (val.toUpperCase() != 'N/A' &&
+                      double.tryParse(val) == null)) {
                 // If left empty or invalid, standardize to 'N/A'
                 controller?.text = 'N/A';
-                _onCellEdited(question, part, 'N/A');
                 setState(() {});
               }
             }
@@ -916,8 +996,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
             ),
             onChanged: (newVal) {
-              _onCellEdited(question, part, newVal);
-              setState(() {}); // Recalculates column totals and grand total live
+              setState(
+                  () {}); // Recalculates column totals and grand total live
             },
           ),
         ),

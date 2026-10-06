@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
+import '../models/table_selection.dart';
 import '../services/ocr_service.dart';
 import '../widgets/scanner_overlay.dart';
 import 'verification_screen.dart';
@@ -12,6 +13,7 @@ class ImageProcessingScreen extends StatefulWidget {
   final String tableType;
   final BaseOcrService? ocrService;
   final bool autoNavigate;
+  final TableSelection? selection;
 
   const ImageProcessingScreen({
     super.key,
@@ -20,6 +22,7 @@ class ImageProcessingScreen extends StatefulWidget {
     this.tableType = '1-4',
     this.ocrService,
     this.autoNavigate = true,
+    this.selection,
   });
 
   @override
@@ -39,7 +42,10 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
   @override
   void initState() {
     super.initState();
-    _ocrService = widget.ocrService ?? const PlaceholderOcrService();
+    _ocrService = widget.ocrService ??
+        (!kIsWeb && Platform.isAndroid
+            ? const LocalOcrService()
+            : const PythonOcrService());
     _startOcrProcessing();
   }
 
@@ -55,6 +61,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
       final data = await _ocrService.processImage(
         imagePath: widget.imagePath,
         tableType: widget.tableType,
+        selection: widget.selection,
         onProgress: (status, progress) {
           if (mounted) {
             setState(() {
@@ -100,6 +107,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
           marksTableData: data,
           imagePath: widget.imagePath,
           isSampleDemo: widget.isSampleDemo,
+          imageRotation: widget.selection?.rotation ?? 0,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curve = CurvedAnimation(
@@ -130,11 +138,15 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
     if (hasLocalFile) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Image.file(
-          File(widget.imagePath!),
-          fit: BoxFit.contain,
-          width: double.infinity,
-          height: double.infinity,
+        child: RotatedBox(
+          quarterTurns: (widget.selection?.rotation ?? 0) ~/ 90,
+          child: Image(
+            image: ResizeImage(FileImage(File(widget.imagePath!)),
+                width: 2048, height: 2048, policy: ResizeImagePolicy.fit),
+            fit: BoxFit.contain,
+            width: double.infinity,
+            height: double.infinity,
+          ),
         ),
       );
     }
@@ -172,9 +184,11 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
               const SizedBox(height: 4),
               // Subtitle
               Text(
-                _isProcessing
-                    ? 'Extracting handwritten marks with OCR...'
-                    : 'Table Marks Extracted Successfully!',
+                _hasError
+                    ? 'Could not read this marks table'
+                    : _isProcessing
+                        ? 'Extracting handwritten marks with OCR...'
+                        : 'Table Marks Extracted Successfully!',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: _isProcessing
@@ -187,7 +201,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
 
               // Image Preview Container with Scanner Overlay
               Expanded(
-                flex: 6,
+                flex: _hasError ? 4 : 6,
                 child: Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -215,8 +229,10 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
 
               // Status and Progress Section
               Expanded(
-                flex: 3,
-                child: Column(
+                flex: _hasError ? 5 : 3,
+                child: Center(
+                    child: SingleChildScrollView(
+                        child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (_hasError) ...[
@@ -237,6 +253,12 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Retry Scan'),
                       ),
+                      if (widget.selection != null)
+                        TextButton.icon(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.crop),
+                          label: const Text('Adjust Table Corners'),
+                        ),
                     ] else ...[
                       // Animated Progress indicator
                       TweenAnimationBuilder<double>(
@@ -323,7 +345,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
                         ),
                     ],
                   ],
-                ),
+                ))),
               ),
             ],
           ),
