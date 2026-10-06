@@ -18,8 +18,9 @@ The full-table extractor produced all 28 cells. With the unmodified pretrained
 | Cells excluded from numeric accuracy | 3 |
 
 The failed numeric cell is Q4(c): reference `07`, prediction `o7`. Integer
-validation flags it, while the table displays the raw `o7` prediction so the
-teacher may optionally edit it. The flag never blocks submission. Q4(a) has an ambiguous
+validation flags it, while the table displays `N/A` with a warning. The original
+`o7` remains in the edit dialog for the teacher to inspect and correct.
+The flag never blocks submission. Q4(a) has an ambiguous
 digit; Q4(b) is a slash and Q3(d) a dash. They are excluded explicitly, not assigned
 guessed numeric labels. The conservative paper/noise detector now classifies all 17 labeled blank cells
 as empty before OCR, so they display `N/A` without flags. This development-sample
