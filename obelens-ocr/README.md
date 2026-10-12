@@ -83,10 +83,16 @@ Use one complete, roughly upright table that fills most of the photograph, with
 visible ruled borders. The app's selected Q1–Q4 or Q5–Q8 group determines column
 identities; printed question headers are not recognized separately.
 
-OpenCV registers detected full or partial lines against normalized OBE layouts,
-with connected quadrilateral contours as a localization fallback. Short edges
-of the Grand Total extension are excluded from the main-grid geometry. The
-main rubric is perspective-warped to a fixed 1000 × 1400 area, then the 28 marks
+Detection follows resize → grayscale → Gaussian blur → adaptive threshold →
+morphological closing → contours → large convex quadrilaterals → candidate
+scoring → perspective warp → row/column validation. Geometry scoring uses
+area, rectangularity, and the expected portrait aspect ratio; warped grid
+alignment selects the marks table instead of a larger page border. Android
+runs this locally using the [official OpenCV Android package](https://opencv.org/opencv4android-usage-models/),
+without loading the OCR model. Both paths apply EXIF orientation before user rotation.
+Both Android and Python recover partial outer edges through the same
+line/template fitting when no contour passes validation. The main rubric is perspective-warped to a
+fixed 1000 × 1400 area, then the 28 marks
 are cropped using normalized reference coordinates. Visible internal lines can
 refine those coordinates; missing or extra lines are not fatal. Both question
 groups use the same geometry and retain their selected question identities.
@@ -101,6 +107,28 @@ With no usable internal lines the reference OBE template is assumed, so check th
 result carefully. Arbitrary layouts and curved pages remain unsupported. Rotate
 sideways photographs upright in the preview; moderate perspective is supported.
 The existing API/CLI pixel `corners` format remains available.
+
+Android and the Python backend used by Linux, macOS, Windows, and iOS follow
+these same detection settings (a reachable Python API is required outside Android):
+
+| Stage | Shared behavior |
+| --- | --- |
+| Resize | Long edge at most 2000 pixels, OpenCV linear interpolation |
+| Threshold | BGR → gray, 5×5 Gaussian blur, Gaussian adaptive threshold, block 31, C=12, inverted |
+| Morphology | 5×5 closing, then up to 80 largest contours |
+| Candidates | Convex quadrilaterals, at least 1000 pixels and 2% of image area; contour tolerances .015/.025/.04 |
+| Ranking | Rectangularity, area, and portrait aspect ratio; warped grid score selects the winner |
+| Warp/check | Unblurred source → 1000×1400 area with 8-pixel margin → gray/blur/threshold |
+| Accept | At least 3 vertical and 4 horizontal template-border matches within 3.5% |
+| Recovery | Same Hough line grouping/template fitting, then the same warped-grid check |
+| Fallback | Keep manual corner editing available when no candidate passes |
+
+Android decoding keeps at least 2000 pixels on the long edge when the photo is
+large enough, avoiding the old power-of-two undersampling. EXIF orientation
+precedes user rotation. Debug and release builds use the same detector.
+The [cross-platform regression runner](../android/detector-tests/README.md)
+executes the actual Kotlin core against Python results; device speed and camera
+integration still require testing on a phone.
 
 Cells are inset from borders, retain bounds in the oriented/rotated source frame, and preserve
 color/faint strokes. Blank detection estimates paper shading and noise, and checks for connected
