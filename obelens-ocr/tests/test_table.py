@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from ocr import MarkRecognizer
-from ocr.cell_extractor import extract_cells, ExtractionError
+from ocr.cell_extractor import detect_corners, extract_cells, ExtractionError
 from ocr.full_table import process_table
 from ocr.server import make_handler
 
@@ -109,6 +109,22 @@ class ExtractionTests(unittest.TestCase):
         bounds = [expected[:,0].min(),expected[:,1].min(),
                   expected[:,0].max(),expected[:,1].max()]
         np.testing.assert_allclose(cells[0].bounds,bounds,atol=12)
+
+    def test_small_table_inside_larger_page_border(self):
+        image = np.full((1800, 1400, 3), 255, np.uint8)
+        cv2.rectangle(image, (20, 20), (1380, 1780), (0, 0, 0), 3)
+        small = cv2.resize(grid(), (325, 425), interpolation=cv2.INTER_AREA)
+        image[500:925, 600:925] = small
+        points = np.asarray(detect_corners(image)) * [1399, 1799]
+        np.testing.assert_allclose(points, [[625,525],[875,525],[875,895],[625,895]], atol=5)
+
+    def test_uneven_illumination_and_sensor_noise(self):
+        image = grid().astype(np.float32)
+        shading = np.linspace(.5, 1., image.shape[1])[None, :, None]
+        noise = np.random.default_rng(42).normal(0, 5, image.shape)
+        image = np.clip(image*shading+noise, 0, 255).astype(np.uint8)
+        points = np.asarray(detect_corners(image)) * [649, 849]
+        np.testing.assert_allclose(points, [[50,50],[550,50],[550,790],[50,790]], atol=5)
 
     def test_payload_crop_and_review(self):
         payload = process_table(SAMPLE,MarkRecognizer(backend=Backend()))

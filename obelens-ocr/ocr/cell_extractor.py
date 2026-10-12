@@ -20,6 +20,7 @@ class TableExtraction:
 
 def _binary(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
     return cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                  cv2.THRESH_BINARY_INV, 31, 12)
 
@@ -40,7 +41,7 @@ TEMPLATES = (
 )
 
 
-def _fit_axis(positions, ratios, span_hint):
+def _fit_axis(positions, ratios, span_hint, extent):
     """Register partial lines to a template, allowing outliers and missing edges."""
     positions = np.asarray(positions)
     best = None
@@ -52,6 +53,10 @@ def _fit_axis(positions, ratios, span_hint):
                     if not .7*span_hint <= span <= 1.4*span_hint:
                         continue
                     expected = positions[i]-ratios[a]*span+ratios*span
+                    # Avoid selecting an equally good but shifted fit outside
+                    # the photograph when an outer border is missing.
+                    if expected[0] < 0 or expected[-1] >= extent:
+                        continue
                     distances = np.abs(expected[:,None]-positions)
                     errors = distances.min(axis=1)
                     matches = errors < max(4,span*.025)
@@ -89,7 +94,7 @@ def _line_groups(lines, vertical, h, w):
     return sorted(sorted(representatives,key=lambda item:item[2],reverse=True)[:30])
 
 
-def _locate_candidates(image):
+def _line_candidates(image):
     h,w = image.shape[:2]
     binary = _binary(image)
     lines = cv2.HoughLinesP(binary,1,np.pi/720,35,
@@ -102,8 +107,8 @@ def _locate_candidates(image):
             width_hint = float(np.median(sorted([v[2] for v in horizontal],reverse=True)[:6]))
             height_hint = float(np.median(sorted([v[2] for v in vertical],reverse=True)[:6]))
             for xs,ys in TEMPLATES:
-                xf = _fit_axis([v[0] for v in vertical],xs,width_hint)
-                yf = _fit_axis([v[0] for v in horizontal],ys,height_hint)
+                xf = _fit_axis([v[0] for v in vertical],xs,width_hint,w)
+                yf = _fit_axis([v[0] for v in horizontal],ys,height_hint,h)
                 if xf is None or yf is None or xf[2].sum()<3 or yf[2].sum()<4:
                     continue
                 def edge(groups,position,is_vertical):
@@ -116,31 +121,58 @@ def _locate_candidates(image):
                 top,bottom = [edge(horizontal,y,False) for y in yf[1][[0,-1]]]
                 candidates.append([_intersection(left,top),_intersection(right,top),
                                    _intersection(right,bottom),_intersection(left,bottom)])
-    # Connected outer contours are a fallback when individual edges fragment.
-    closed = cv2.morphologyEx(binary,cv2.MORPH_CLOSE,np.ones((5,5),np.uint8))
-    contours,_ = cv2.findContours(closed,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-    for contour in sorted(contours,key=cv2.contourArea,reverse=True)[:20]:
-        if cv2.contourArea(contour) < h*w*.08:
-            continue
-        polygon = cv2.approxPolyDP(contour,.025*cv2.arcLength(contour,True),True)
-        if len(polygon)==4 and cv2.isContourConvex(polygon):
-            points = polygon[:,0].astype(np.float32)
-            center = points.mean(axis=0)
-            points = points[np.argsort(np.arctan2(points[:,1]-center[1],points[:,0]-center[0]))]
-            points = np.roll(points,-int(np.argmin(points.sum(axis=1))),axis=0)
-            candidates.append(points)
     return candidates
+
+
+def _locate_candidates(image):
+    """Contour-first localization; rank geometry before validating warped grids."""
+    h, w = image.shape[:2]
+    binary = _binary(image)
+    # Close small breaks without erasing slanted lines as directional opening can.
+    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    contours, _ = cv2.findContours(closed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    ranked = []
+    for contour in sorted(contours, key=cv2.contourArea, reverse=True)[:80]:
+        area = cv2.contourArea(contour)
+        if area < max(1000, h*w*.02):
+            continue
+        for tolerance in (.015, .025, .04):
+            polygon = cv2.approxPolyDP(contour, tolerance*cv2.arcLength(contour, True), True)
+            if len(polygon) != 4 or not cv2.isContourConvex(polygon):
+                continue
+            points = polygon[:, 0].astype(np.float32)
+            center = points.mean(axis=0)
+            points = points[np.argsort(np.arctan2(points[:, 1]-center[1], points[:, 0]-center[0]))]
+            points = np.roll(points, -int(np.argmin(points.sum(axis=1))), axis=0)
+            # Keep the same TL,TR,BR,BL contract as the native editor.
+            if (points[0,0] >= points[1,0] or points[3,0] >= points[2,0]
+                    or points[0,1] >= points[3,1] or points[1,1] >= points[2,1]):
+                continue
+            width = (np.linalg.norm(points[1]-points[0])+np.linalg.norm(points[2]-points[3]))/2
+            height = (np.linalg.norm(points[3]-points[0])+np.linalg.norm(points[2]-points[1]))/2
+            ratio = width/max(height, 1)
+            if not .25 < ratio < 1.5:
+                continue
+            rectangularity = min(area/max(cv2.contourArea(points), 1), 1)
+            score = rectangularity + area/(h*w) - abs(np.log(ratio/.7))*.3
+            if not any(np.max(np.linalg.norm(points-old, axis=1)) < 8 for _, old in ranked):
+                ranked.append((score, points))
+            break
+    return [points for _, points in sorted(ranked, key=lambda item: item[0], reverse=True)]
 
 
 def rectify(image, corners=None):
     if corners is None:
         h,w = image.shape[:2]
         best = None
-        for candidate in _locate_candidates(image):
+        # Prefer contour rectangles. Recover broken outer edges only if no
+        # contour candidate passes row/column validation.
+        candidates = _locate_candidates(image)
+        for candidate in candidates:
             try:
                 candidate = np.asarray(candidate)
-                if (candidate[:,0].min() < -w*.05 or candidate[:,0].max() > w*1.05
-                        or candidate[:,1].min() < -h*.05 or candidate[:,1].max() > h*1.05):
+                if (np.any(candidate < 0) or np.any(candidate[:,0] >= w)
+                        or np.any(candidate[:,1] >= h)):
                     continue
                 corrected,points,transform = rectify(image,candidate)
                 score,_,_ = _align_template(corrected)
@@ -148,6 +180,19 @@ def rectify(image, corners=None):
                 continue
             if best is None or score > best[0]:
                 best = score,corrected,points,transform
+        if best is None:
+            for candidate in _line_candidates(image):
+                candidate = np.asarray(candidate)
+                if (np.any(candidate < 0) or np.any(candidate[:, 0] >= w)
+                        or np.any(candidate[:, 1] >= h)):
+                    continue
+                try:
+                    corrected, points, transform = rectify(image, candidate)
+                    score, _, _ = _align_template(corrected)
+                except ExtractionError:
+                    continue
+                if best is None or score > best[0]:
+                    best = score, corrected, points, transform
         if best is None:
             raise ExtractionError('Could not locate the main marks table. Capture the complete table clearly.')
         return best[1:]
