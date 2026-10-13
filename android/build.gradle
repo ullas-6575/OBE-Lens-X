@@ -11,6 +11,11 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    // Flutter 3.24 only creates this extension on :app. Recent plugins also
+    // read its SDK settings, so share it when the SDK has not added it yet.
+    if (project.name != "app" && project.extensions.findByName("flutter") == null) {
+        project.extensions.add("flutter", project(":app").extensions.getByName("flutter"))
+    }
 }
 
 tasks.register("clean", Delete) {

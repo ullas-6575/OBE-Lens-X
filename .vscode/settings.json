@@ -1,3 +1,4 @@
 {
-  "cmake.sourceDirectory": "D:/CSE 3200 Project/OBE-Lens-X/linux"
+  "cmake.sourceDirectory": "D:/CSE 3200 Project/OBE-Lens-X/linux",
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

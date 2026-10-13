@@ -1,10 +1,9 @@
-import 'dart:io';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../services/result_service.dart';
 import '../widgets/edit_mark_dialog.dart';
+import '../widgets/selected_image.dart';
 import 'image_source_screen.dart';
 import 'results_screen.dart';
 
@@ -31,13 +30,10 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final Set<String> _edited = {};
   final TextEditingController _rollNoController = TextEditingController();
-<<<<<<< HEAD
   late final String _submissionId = _newSubmissionId();
   bool _isSubmitting = false;
   late final ResultService _resultService =
       widget.resultService ?? const SupabaseResultService();
-=======
->>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
 
   bool _isFlagged(String q, String p) {
     final result = widget.marksTableData.cellResults[q]?[p];
@@ -56,7 +52,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final bytes = List<int>.generate(16, (_) => random.nextInt(256));
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    final hex =
+        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
         '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
         '${hex.substring(20)}';
@@ -110,7 +107,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   void _openResultsScreen() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const ResultsScreen()),
+      MaterialPageRoute(
+          builder: (context) => ResultsScreen(resultService: _resultService)),
     );
   }
 
@@ -171,11 +169,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _submitVerification() async {
-<<<<<<< HEAD
     if (_isSubmitting) return;
 
-=======
->>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
     final rollNo = _rollNoController.text.trim();
     if (rollNo.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +201,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
       isVerified: true,
     );
 
-<<<<<<< HEAD
     setState(() => _isSubmitting = true);
     try {
       await _resultService.saveResult(
@@ -231,26 +225,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     if (!mounted) return;
     setState(() => _isSubmitting = false);
-=======
-    final saved = await ResultService.saveResult(
-      rollNo: rollNo,
-      tableType: _activeTableType,
-      marks: updatedMarks,
-      grandTotal: _calculateGrandTotal(),
-      imagePath: widget.imagePath,
-    );
-
-    if (!mounted) return;
-
-    if (!saved) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('The result was prepared, but saving to Supabase failed.'),
-        ),
-      );
-    }
-
->>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
     _showVerificationSuccessDialog(verifiedData);
   }
 
@@ -377,7 +351,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       Navigator.of(context).pop();
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (context) => const ResultsScreen(),
+                          builder: (context) =>
+                              ResultsScreen(resultService: _resultService),
                         ),
                       );
                     },
@@ -481,9 +456,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     double? width,
     BoxFit fit = BoxFit.cover,
   }) {
-    final hasLocalFile = !kIsWeb &&
-        widget.imagePath != null &&
-        File(widget.imagePath!).existsSync();
+    final hasLocalFile = selectedImageExists(widget.imagePath);
 
     if (hasLocalFile) {
       return SizedBox(
@@ -492,7 +465,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         child: RotatedBox(
           quarterTurns: widget.imageRotation ~/ 90,
           child: Image(
-            image: ResizeImage(FileImage(File(widget.imagePath!)),
+            image: ResizeImage(selectedImageProvider(widget.imagePath!),
                 width: 2048, height: 2048, policy: ResizeImagePolicy.fit),
             fit: fit,
           ),

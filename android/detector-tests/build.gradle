@@ -1,0 +1,34 @@
+plugins { id 'org.jetbrains.kotlin.jvm' version '1.9.24' }
+repositories { mavenCentral() }
+
+// Compile the actual Android detector, with desktop JNI only for this test runner.
+// This dependency is never included in the Android app.
+sourceSets.main.kotlin {
+    srcDir '../app/src/main/kotlin'
+    include '**/TableDetector.kt'
+}
+dependencies {
+    implementation 'org.openpnp:opencv:4.9.0-0'
+    testImplementation 'junit:junit:4.13.2'
+}
+compileKotlin.kotlinOptions.jvmTarget = '1.8'
+compileTestKotlin.kotlinOptions.jvmTarget = '1.8'
+java { sourceCompatibility = JavaVersion.VERSION_1_8; targetCompatibility = JavaVersion.VERSION_1_8 }
+
+final repo = file('../..')
+final fixtures = new File(repo, 'build/detection-fixtures')
+tasks.register('generateFixtures', Exec) {
+    workingDir repo
+    commandLine providers.gradleProperty('python').getOrElse(new File(repo, '.venv/bin/python').path),
+        'obelens-ocr/scripts/generate_detection_fixtures.py', fixtures.path
+    inputs.files(new File(repo, 'obelens-ocr/scripts/generate_detection_fixtures.py'),
+        new File(repo, 'assets/sample_marksheet.png'))
+    inputs.dir new File(repo, 'obelens-ocr/ocr')
+    outputs.dir fixtures
+}
+test {
+    dependsOn 'generateFixtures'
+    inputs.dir fixtures
+    systemProperty 'detector.fixtures', fixtures.path
+    testLogging { events 'passed', 'failed'; showStandardStreams = true }
+}

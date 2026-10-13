@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/models/marks_table_data.dart';
@@ -26,6 +27,9 @@ MarksTableData predictions() => MarksTableData.empty(tableType: '1-4').copyWith(
     );
 
 class _FakeResultService implements ResultService {
+  final List<String> submissions = [];
+  Completer<void>? pending;
+
   @override
   Future<List<Map<String, dynamic>>> fetchResults() async => const [];
 
@@ -37,18 +41,61 @@ class _FakeResultService implements ResultService {
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
     String? imagePath,
-  }) async {}
+  }) async {
+    submissions.add(submissionId);
+    await pending?.future;
+  }
 }
 
 void main() {
+  testWidgets('Failed saves retain the grid and retry with the same submission',
+      (tester) async {
+    final service = _FakeResultService()..pending = Completer<void>();
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(
+            marksTableData: predictions(), resultService: service)));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'ROLL001');
+    await tester.tap(find.text('Verify & Submit'));
+    await tester.pump();
+    expect(service.submissions.length, 1);
+    expect(
+        tester
+            .widget<FilledButton>(
+                find.byWidgetPredicate((widget) => widget is FilledButton))
+            .onPressed,
+        isNull);
+    expect(find.text('Marks Verified & Saved!'), findsNothing);
+
+    service.pending!.completeError(StateError('offline'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Could not save result:'), findsOneWidget);
+    expect(find.text('Marks Verified & Saved!'), findsNothing);
+    expect(find.text('15'), findsWidgets);
+
+    // The error snackbar temporarily overlays the bottom submit button.
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pumpAndSettle();
+    service.pending = null;
+    await tester.tap(find.text('Verify & Submit'));
+    await tester.pumpAndSettle();
+    expect(service.submissions.length, 2);
+    expect(service.submissions[0], service.submissions[1]);
+    expect(find.text('Marks Verified & Saved!'), findsOneWidget);
+
+    await tester.tap(find.text('View Saved Results'));
+    await tester.pumpAndSettle();
+    expect(find.text('No saved results found.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'Whole table submits without opening flagged cells; no confidence ticks',
       (tester) async {
-    await tester.pumpWidget(
-        MaterialApp(
-            home: VerificationScreen(
-                marksTableData: predictions(),
-                resultService: _FakeResultService())));
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(
+            marksTableData: predictions(),
+            resultService: _FakeResultService())));
     await tester.pumpAndSettle();
     expect(find.text('15'), findsWidgets);
     expect(find.text('o7'), findsNothing);
@@ -77,11 +124,10 @@ void main() {
 
   testWidgets('Optional Edit Mark dialog saves changes and respects maximum',
       (tester) async {
-    await tester.pumpWidget(
-        MaterialApp(
-            home: VerificationScreen(
-                marksTableData: predictions(),
-                resultService: _FakeResultService())));
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(
+            marksTableData: predictions(),
+            resultService: _FakeResultService())));
     await tester.pumpAndSettle();
     final cell = find.byKey(const ValueKey('edit-1-a'));
     await tester.ensureVisible(cell);

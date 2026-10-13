@@ -71,7 +71,7 @@ void main() {
             .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
             .ocrService,
         same(service));
-    expect(find.text('MarkSheet OCR'), findsOneWidget);
+    expect(find.text('obelens'), findsOneWidget);
     expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
 
     // Verify Table Type Selector has Q1-Q4 and Q5-Q8
@@ -115,7 +115,7 @@ void main() {
             .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
             .ocrService,
         same(service));
-    expect(find.text('MarkSheet OCR'), findsOneWidget);
+    expect(find.text('obelens'), findsOneWidget);
     expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
   });
 

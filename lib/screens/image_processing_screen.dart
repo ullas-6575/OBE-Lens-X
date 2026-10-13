@@ -6,6 +6,7 @@ import '../models/table_selection.dart';
 import '../services/ocr_service.dart';
 import '../services/result_service.dart';
 import '../widgets/scanner_overlay.dart';
+import '../widgets/selected_image.dart';
 import 'verification_screen.dart';
 
 class ImageProcessingScreen extends StatefulWidget {
@@ -135,9 +136,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
 
   /// Builds preview of the captured image or a realistic visual replica of the marksheet rubric table
   Widget _buildTablePreview() {
-    final hasLocalFile = !kIsWeb &&
-        widget.imagePath != null &&
-        File(widget.imagePath!).existsSync();
+    final hasLocalFile = selectedImageExists(widget.imagePath);
 
     if (hasLocalFile) {
       return ClipRRect(
@@ -145,7 +144,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
         child: RotatedBox(
           quarterTurns: (widget.selection?.rotation ?? 0) ~/ 90,
           child: Image(
-            image: ResizeImage(FileImage(File(widget.imagePath!)),
+            image: ResizeImage(selectedImageProvider(widget.imagePath!),
                 width: 2048, height: 2048, policy: ResizeImagePolicy.fit),
             fit: BoxFit.contain,
             width: double.infinity,

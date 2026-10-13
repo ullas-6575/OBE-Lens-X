@@ -13,6 +13,69 @@ normalized corners and rotation; Python straightens the selected table before
 reading its 28 cells. Flags are advisory; teachers edit only
 the marks they want to change and submit the table in one action.
 
+## Run on a PC with Docker
+
+Install Docker Desktop (Windows/macOS, using Linux containers) or Docker Engine
+with the Compose plugin (Linux). From the repository root, run:
+
+```bash
+docker compose up --build -d
+```
+
+Open **http://localhost:8080**. The existing login → upload → adjust table → OCR
+→ verify → save workflow runs in the browser. Uploading a photograph works on
+desktop browsers; the camera button uses the browser's file/capture picker and
+may offer file selection instead of a live camera on a PC.
+
+The first build downloads Flutter, Python dependencies, and the official
+[`en_PP-OCRv5_mobile_rec` model](https://www.paddleocr.ai/main/en/version3.x/module_usage/text_recognition.html).
+You do not need Flutter, Python, Android tooling,
+or the ignored model directories installed on the host. Subsequent starts reuse
+the built images. Allow several minutes and several GB of disk space for the
+first build; allocating at least 4 GB RAM to Docker is recommended.
+
+Login and saved results still use the Supabase project in `lib/main.dart` and
+require internet access. The existing `public.results` migration below must
+already be applied to that project. Docker does not create a replacement
+database or change your account data. Scanned images are processed in memory.
+
+The images target **linux/amd64** for the pinned Flutter/Paddle CPU binaries.
+Intel/AMD PCs need a [CPU compatible with PaddlePaddle](https://www.paddlepaddle.org.cn/documentation/docs/en/install/pip/linux-pip_en.html)
+(including AVX). ARM PCs
+and Apple Silicon require Docker's amd64 emulation; that configuration has not
+been verified here, and very old CPUs are not supported. Docker makes the
+software setup portable, rather than guaranteeing support for every processor.
+
+Useful commands:
+
+```bash
+docker compose ps                 # Container status
+docker compose logs -f           # Startup or OCR errors
+docker compose down              # Stop and remove these containers
+docker compose up --build -d     # Rebuild after source changes
+```
+
+To change the port, create a root `.env` containing `OBELENS_PORT=8081`, then
+run the start command again and open http://localhost:8081. The app is bound to
+the local PC by default. Nginx serves Flutter and proxies `/ocr/` to Python,
+so no machine-specific IP or CORS configuration is needed. The first recognition
+request initializes the model and can take longer than later scans.
+
+For just the OCR API (for an existing native Flutter client):
+
+```bash
+docker build --platform linux/amd64 --target ocr -t obelens-ocr .
+docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 obelens-ocr
+```
+
+Check http://localhost:8765/health for the API-only container, or
+http://localhost:8080/health for Compose. Health checks confirm the HTTP service
+is running; recognition is initialized lazily. To verify a real scan through
+Compose, run `python3 docker/smoke_test.py` with any host Python 3 installation
+(optional; Python is not needed to run the app).
+
+## Run with local development tools
+
 Start the OCR server from the repository root:
 
 ```bash

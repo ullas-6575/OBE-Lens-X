@@ -14,7 +14,7 @@ class MarkSheetApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MarkSheet OCR',
+      title: 'obelens',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: AuthScreen(ocrService: ocrService, authService: authService),

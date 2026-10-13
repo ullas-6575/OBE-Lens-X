@@ -1,0 +1,20 @@
+# Allow only build inputs; never send local datasets, credentials, caches or APKs.
+**
+!Dockerfile
+!compose.yaml
+!docker/
+!docker/**
+!pubspec.yaml
+!pubspec.lock
+!lib/
+!lib/**
+!web/
+!web/**
+!assets/
+!assets/**
+!obelens-ocr/
+!obelens-ocr/requirements.txt
+!obelens-ocr/ocr/
+!obelens-ocr/ocr/**
+**/__pycache__/
+**/*.pyc

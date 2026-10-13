@@ -11,4 +11,4 @@ Future<void> main() async {
   );
 
   bootstrap();
-  }
+}

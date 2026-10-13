@@ -7,6 +7,13 @@ No training or fine-tuning is performed.
 
 ## Setup and server
 
+For a browser UI and OCR service with one command on a PC, use
+`docker compose up --build -d` from the repository root and open
+http://localhost:8080. See the [Docker setup](../README.md#run-on-a-pc-with-docker)
+for requirements, commands, and hardware limits. The Docker build downloads the
+official model automatically; the local setup below still uses your virtual
+environment and downloaded model directory.
+
 From the repository root, reuse the existing OCR environment:
 
 ```bash
@@ -40,7 +47,8 @@ the recognizer. **Continue** then uploads to `POST /ocr/table` for recognition.
   `flutter run --dart-define=OCR_API_URL=http://YOUR_COMPUTER_LAN_IP:8765`.
 - Hosted/release builds and iOS: put the Python API behind HTTPS and pass its base
   URL with `--dart-define=OCR_API_URL=https://your-ocr-host`. Android HTTP access
-  is enabled only in the debug manifest. Browser uploads are not implemented.
+  is enabled only in the debug manifest. Browser builds use the same-origin API
+  supplied by Docker's Nginx proxy and support image uploads and crop previews.
 
 An optional server `OBELENS_OCR_TOKEN` environment variable enables bearer-token
 checking. Supply the matching build-time `--dart-define=OCR_API_TOKEN=...` value

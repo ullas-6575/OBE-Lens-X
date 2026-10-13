@@ -301,7 +301,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             ),
             const SizedBox(width: 12),
             const Text(
-              'OBE Lens',
+              'obelens',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 23,
@@ -611,7 +611,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             children: [
               Flexible(
                 child: Text(
-                  _isSignUp ? 'Already have an account?' : 'New to OBE Lens?',
+                  _isSignUp ? 'Already have an account?' : 'New to obelens?',
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                   style: const TextStyle(

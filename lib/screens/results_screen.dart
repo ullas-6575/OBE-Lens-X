@@ -2,28 +2,32 @@ import 'package:flutter/material.dart';
 import '../services/result_service.dart';
 
 class ResultsScreen extends StatefulWidget {
-<<<<<<< HEAD
   final ResultService resultService;
 
   const ResultsScreen({
     super.key,
     this.resultService = const SupabaseResultService(),
   });
-=======
-  const ResultsScreen({super.key});
->>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
-  Future<List<Map<String, dynamic>>> _fetchResults() async {
-<<<<<<< HEAD
-    return widget.resultService.fetchResults();
-=======
-    return ResultService.fetchResults();
->>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
+  late Future<List<Map<String, dynamic>>> _results;
+
+  @override
+  void initState() {
+    super.initState();
+    _results = widget.resultService.fetchResults();
+  }
+
+  @override
+  void didUpdateWidget(covariant ResultsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resultService != widget.resultService) {
+      _results = widget.resultService.fetchResults();
+    }
   }
 
   String _formatSavedAt(dynamic value) {
@@ -31,7 +35,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       return 'Unknown';
     }
     try {
-      final date = DateTime.parse(value.toString());
+      final date = DateTime.parse(value.toString()).toLocal();
       return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return value.toString();
@@ -46,7 +50,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         centerTitle: true,
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _fetchResults(),
+        future: _results,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -94,11 +98,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            rollNo,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
+                          Expanded(
+                            child: Text(
+                              rollNo,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
                             ),
                           ),
                           Chip(

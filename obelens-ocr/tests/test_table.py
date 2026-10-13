@@ -154,6 +154,12 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(payload['questions'],['5','6','7','8'])
             self.assertEqual(sum(len(v) for v in payload['cellResults'].values()),28)
             self.assertEqual(post({'image_base64':'invalid'})[0],422)
+            # A valid JPEG header with truncated pixels must be an upload error,
+            # not an inference/model-installation failure.
+            encoded = io.BytesIO()
+            Image.fromarray(grid()).save(encoded, format='JPEG')
+            truncated = encoded.getvalue()[:-100]
+            self.assertEqual(post({'image_base64': base64.b64encode(truncated).decode()})[0], 422)
             self.assertEqual(post({},'wrong')[0],401)
         finally:
             server.shutdown()

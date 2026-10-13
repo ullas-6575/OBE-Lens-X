@@ -16,6 +16,23 @@ from .table_selection import orient_image
 MAX_BODY = 16 * 1024 * 1024
 
 
+def decode_image(raw):
+    # Pillow opens lazily: truncated files can fail only when pixels are read.
+    # Keep upload errors separate from failures in the recognition backend.
+    try:
+        image = Image.open(io.BytesIO(raw))
+        try:
+            if image.width * image.height > 25_000_000:
+                raise ValueError('Image exceeds 25 megapixels')
+            image.load()
+            return image
+        except Exception:
+            image.close()
+            raise
+    except OSError as exc:
+        raise ValueError('Could not decode the uploaded image') from exc
+
+
 def make_handler(recognizer, token=''):
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
@@ -47,9 +64,7 @@ def make_handler(recognizer, token=''):
                 if not isinstance(request, dict):
                     raise ValueError('Expected a JSON object')
                 raw = base64.b64decode(request['image_base64'], validate=True)
-                with Image.open(io.BytesIO(raw)) as image:
-                    if image.width * image.height > 25_000_000:
-                        raise ValueError('Image exceeds 25 megapixels')
+                with decode_image(raw) as image:
                     rotation = request.get('rotation', 0)
                     if self.path == '/ocr/detect':
                         source = orient_image(image, rotation)

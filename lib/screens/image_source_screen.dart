@@ -81,7 +81,7 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'MarkSheet OCR',
+          'obelens',
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: -0.3),
         ),
         centerTitle: true,

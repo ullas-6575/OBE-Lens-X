@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'ocr_http_client.dart' if (dart.library.io) 'ocr_http_client_io.dart';
 import '../models/marks_table_data.dart';
 import '../models/table_selection.dart';
 
@@ -139,11 +141,19 @@ class LocalOcrService implements BaseOcrService, TableDetectionService {
   @override
   Future<TableSelection?> detectTable(
       {required String imagePath, int rotation = 0}) async {
-    return null;
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'detectTable',
+      {'imagePath': imagePath, 'rotation': rotation},
+    );
+    if (result == null) {
+      throw const FormatException('Local detection returned no data.');
+    }
+    final body = Map<String, dynamic>.from(result);
+    return body['detected'] == true ? TableSelection.fromDetection(body) : null;
   }
 }
 
-/// Python API client for mobile/desktop. Configure OCR_API_URL at build time.
+/// Python API client. Web defaults to the same-origin Docker reverse proxy.
 class PythonOcrService implements BaseOcrService, TableDetectionService {
   final String? endpoint;
   final Duration timeout;
@@ -186,47 +196,45 @@ class PythonOcrService implements BaseOcrService, TableDetectionService {
   Future<Map<String, dynamic>> _postImage(
       String path, String? imagePath, Map<String, dynamic> fields,
       {VoidCallback? onUploaded, Duration? requestTimeout}) async {
-    if (kIsWeb) {
-      throw UnsupportedError('Use the mobile or desktop app for image OCR.');
-    }
     const configuredUrl = String.fromEnvironment('OCR_API_URL');
     final base = endpoint ??
         (configuredUrl.isNotEmpty
             ? configuredUrl
-            : Platform.isAndroid
-                ? 'http://10.0.2.2:8765'
-                : 'http://127.0.0.1:8765');
+            : kIsWeb
+                ? Uri.base.origin
+                : Platform.isAndroid
+                    ? 'http://10.0.2.2:8765'
+                    : 'http://127.0.0.1:8765');
     if (imagePath != null &&
-        await File(imagePath).length() > 10 * 1024 * 1024) {
+        await XFile(imagePath).length() > 10 * 1024 * 1024) {
       throw const FormatException('Select an image smaller than 10 MB.');
     }
     final bytes = imagePath == null
         ? (await rootBundle.load('assets/sample_marksheet.png'))
             .buffer
             .asUint8List()
-        : await File(imagePath).readAsBytes();
+        : await XFile(imagePath).readAsBytes();
     if (bytes.length > 10 * 1024 * 1024) {
       throw const FormatException('Select an image smaller than 10 MB.');
     }
-    final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15);
+    final client = createOcrClient();
     try {
       return await (() async {
-        final request = await client.postUrl(
-            Uri.parse('${base.replaceFirst(RegExp(r'/+$'), '')}$path'));
-        request.headers.contentType = ContentType.json;
         const token = String.fromEnvironment('OCR_API_TOKEN');
-        if (token.isNotEmpty) {
-          request.headers.set('Authorization', 'Bearer $token');
-        }
         final payload = utf8.encode(
             jsonEncode({'image_base64': base64Encode(bytes), ...fields}));
-        request.contentLength = payload.length;
-        request.add(payload);
+        final pending = client.post(
+          Uri.parse('${base.replaceFirst(RegExp(r'/+$'), '')}$path'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+          },
+          body: payload,
+        );
         onUploaded?.call();
-        final response = await request.close();
-        final body = jsonDecode(await utf8.decoder.bind(response).join())
-            as Map<String, dynamic>;
+        final response = await pending;
+        final body =
+            jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
         if (response.statusCode != 200) {
           throw FormatException(
               body['error'] as String? ?? 'OCR request failed');
@@ -235,7 +243,7 @@ class PythonOcrService implements BaseOcrService, TableDetectionService {
       })()
           .timeout(requestTimeout ?? timeout);
     } finally {
-      client.close(force: true);
+      client.close();
     }
   }
 }

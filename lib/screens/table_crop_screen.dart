@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/table_selection.dart';
 import '../services/ocr_service.dart';
 import '../widgets/table_crop_overlay.dart';
+import '../widgets/selected_image.dart';
 import 'image_processing_screen.dart';
 
 class TableCropScreen extends StatefulWidget {
@@ -48,12 +50,12 @@ class _TableCropScreenState extends State<TableCropScreen> {
 
   Future<void> _loadImage() async {
     try {
-      final file = File(widget.imagePath);
+      final file = XFile(widget.imagePath);
       if (await file.length() > 10 * 1024 * 1024) {
         throw const FormatException('Select an image smaller than 10 MB.');
       }
       if (!mounted) return;
-      _image = ResizeImage(FileImage(file),
+      _image = ResizeImage(selectedImageProvider(widget.imagePath),
           width: 2048, height: 2048, policy: ResizeImagePolicy.fit);
       _stream = _image!.resolve(ImageConfiguration.empty);
       _listener = ImageStreamListener((info, _) {

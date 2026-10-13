@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import androidx.exifinterface.media.ExifInterface
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
@@ -15,6 +16,10 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.FlutterInjector
 import io.flutter.plugin.common.MethodChannel
+import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.FloatBuffer
@@ -35,21 +40,21 @@ class MainActivity : FlutterActivity() {
 		super.configureFlutterEngine(flutterEngine)
 		MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
 			.setMethodCallHandler { call, result ->
-				if (call.method != "processTable") {
+				if (call.method != "processTable" && call.method != "detectTable") {
 					result.notImplemented()
 					return@setMethodCallHandler
 				}
 				executor.execute {
 					try {
 						val payload = call.arguments as Map<*, *>
-						val modelAssetPath = payload["modelAssetPath"] as String
 						val imagePath = payload["imagePath"] as String
-						val tableType = payload["tableType"] as String
 						val rotation = payload["rotation"] as Int
-						val corners = payload["corners"] as List<*>
-						val output = processTable(
-							modelAssetPath, imagePath, tableType, rotation, corners
-						)
+						val output = if (call.method == "detectTable") {
+							detectTable(imagePath, rotation)
+						} else {
+							processTable(payload["modelAssetPath"] as String, imagePath,
+								payload["tableType"] as String, rotation, payload["corners"] as List<*>)
+						}
 						mainHandler.post { result.success(output) }
 					} catch (error: Throwable) {
 						mainHandler.post {
@@ -60,6 +65,58 @@ class MainActivity : FlutterActivity() {
 			}
 	}
 
+	private fun detectTable(imagePath: String, rotation: Int): Map<String, Any?> {
+		check(OpenCVLoader.initLocal()) { "Could not initialize table detection" }
+		val bitmap = loadImage(imagePath, rotation)
+		val rgba = Mat()
+		val bgr = Mat()
+		try {
+			Utils.bitmapToMat(bitmap, rgba)
+			Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
+			val corners = TableDetector.detect(bgr)
+			return mapOf("detected" to (corners != null), "normalized_corners" to corners,
+				"rotation" to rotation, "width" to bitmap.width, "height" to bitmap.height)
+		} finally {
+			rgba.release()
+			bgr.release()
+			bitmap.recycle()
+		}
+	}
+
+	/** Both detection and recognition use the same frame as Flutter's preview. */
+	private fun loadImage(imagePath: String, rotation: Int): Bitmap {
+		require(rotation in listOf(0, 90, 180, 270)) { "Invalid image rotation" }
+		require(File(imagePath).length() <= 10 * 1024 * 1024) { "Select an image smaller than 10 MB" }
+		val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+		BitmapFactory.decodeFile(imagePath, bounds)
+		require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Could not open the selected image" }
+		require(bounds.outWidth.toLong() * bounds.outHeight <= 25_000_000) { "Image exceeds 25 megapixels" }
+		var sampleSize = 1
+		// Keep at least 2000 pixels before the detector's exact resize.
+		while (maxOf(bounds.outWidth, bounds.outHeight) / (sampleSize * 2) >= 2000) {
+			sampleSize *= 2
+		}
+		val orientation = ExifInterface(imagePath)
+		val matrix = Matrix().apply {
+			// EXIF reflection is applied before its clockwise rotation.
+			if (orientation.isFlipped) postScale(-1f, 1f)
+			postRotate(orientation.rotationDegrees.toFloat())
+			postRotate(rotation.toFloat())
+		}
+		val source = BitmapFactory.decodeFile(imagePath, BitmapFactory.Options().apply {
+			inSampleSize = sampleSize
+			inPreferredConfig = Bitmap.Config.ARGB_8888
+		}) ?: throw IllegalArgumentException("Could not open the selected image")
+		try {
+			val oriented = Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+			if (oriented !== source) source.recycle()
+			return oriented
+		} catch (error: Throwable) {
+			source.recycle()
+			throw error
+		}
+	}
+
 	private fun processTable(
 		modelAssetPath: String,
 		imagePath: String,
@@ -68,25 +125,10 @@ class MainActivity : FlutterActivity() {
 		corners: List<*>
 	): Map<String, Any?> {
 		val recognizer = getSession(modelAssetPath)
-		val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-		BitmapFactory.decodeFile(imagePath, bounds)
-		if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-			throw IllegalArgumentException("Could not open the selected image")
-		}
-		var sampleSize = 1
-		while (maxOf(bounds.outWidth, bounds.outHeight) / sampleSize > 2048) {
-			sampleSize *= 2
-		}
-		val source = BitmapFactory.decodeFile(
-			imagePath,
-			BitmapFactory.Options().apply { inSampleSize = sampleSize }
-		)
-			?: throw IllegalArgumentException("Could not open the selected image")
-		var rotatedBitmap: Bitmap? = null
+		val source = loadImage(imagePath, rotation)
 		var warpedBitmap: Bitmap? = null
 		try {
-			val rotated = rotate(source, rotation).also { rotatedBitmap = it }
-			val warped = rectify(rotated, corners).also { warpedBitmap = it }
+			val warped = rectify(source, corners).also { warpedBitmap = it }
 			val questions = if (tableType == "1-4") listOf("1", "2", "3", "4")
 				else if (tableType == "5-8") listOf("5", "6", "7", "8")
 				else throw IllegalArgumentException("Unsupported table type")
@@ -149,7 +191,6 @@ class MainActivity : FlutterActivity() {
 			)
 		} finally {
 			warpedBitmap?.recycle()
-			rotatedBitmap?.takeIf { it !== source }?.recycle()
 			source.recycle()
 		}
 	}
@@ -185,20 +226,13 @@ class MainActivity : FlutterActivity() {
 		super.onDestroy()
 	}
 
-	private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
-		if (degrees == 0) return bitmap
-		require(degrees == 90 || degrees == 180 || degrees == 270)
-		val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-		return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-	}
-
 	private fun rectify(bitmap: Bitmap, rawCorners: List<*>): Bitmap {
 		require(rawCorners.size == 4) { "Four table corners are required" }
 		val source = FloatArray(8)
 		rawCorners.forEachIndexed { index, pair ->
 			val point = pair as List<*>
-			source[index * 2] = (point[0] as Number).toFloat() * bitmap.width
-			source[index * 2 + 1] = (point[1] as Number).toFloat() * bitmap.height
+			source[index * 2] = (point[0] as Number).toFloat() * (bitmap.width - 1)
+			source[index * 2 + 1] = (point[1] as Number).toFloat() * (bitmap.height - 1)
 		}
 		val destination = floatArrayOf(0f, 0f, 1000f, 0f, 1000f, 1400f, 0f, 1400f)
 		val matrix = Matrix()
