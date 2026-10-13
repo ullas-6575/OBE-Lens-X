@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import '../services/result_service.dart';
 
 class ResultsScreen extends StatefulWidget {
+<<<<<<< HEAD
   final ResultService resultService;
 
   const ResultsScreen({
     super.key,
     this.resultService = const SupabaseResultService(),
   });
+=======
+  const ResultsScreen({super.key});
+>>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
 
   @override
   State<ResultsScreen> createState() => _ResultsScreenState();
@@ -15,7 +19,11 @@ class ResultsScreen extends StatefulWidget {
 
 class _ResultsScreenState extends State<ResultsScreen> {
   Future<List<Map<String, dynamic>>> _fetchResults() async {
+<<<<<<< HEAD
     return widget.resultService.fetchResults();
+=======
+    return ResultService.fetchResults();
+>>>>>>> e4c15a2d94824aa614f80e0d233b8351328af5b1
   }
 
   String _formatSavedAt(dynamic value) {
