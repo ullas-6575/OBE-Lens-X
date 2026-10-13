@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../models/table_selection.dart';
 import '../services/ocr_service.dart';
+import '../services/result_service.dart';
 import '../widgets/scanner_overlay.dart';
 import 'verification_screen.dart';
 
@@ -12,6 +13,7 @@ class ImageProcessingScreen extends StatefulWidget {
   final bool isSampleDemo;
   final String tableType;
   final BaseOcrService? ocrService;
+  final ResultService? resultService;
   final bool autoNavigate;
   final TableSelection? selection;
 
@@ -21,6 +23,7 @@ class ImageProcessingScreen extends StatefulWidget {
     this.isSampleDemo = false,
     this.tableType = '1-4',
     this.ocrService,
+    this.resultService,
     this.autoNavigate = true,
     this.selection,
   });
@@ -105,6 +108,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
         pageBuilder: (context, animation, secondaryAnimation) =>
             VerificationScreen(
           marksTableData: data,
+          resultService: widget.resultService,
           imagePath: widget.imagePath,
           isSampleDemo: widget.isSampleDemo,
           imageRotation: widget.selection?.rotation ?? 0,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/verification_screen.dart';
+import 'package:my_app/services/result_service.dart';
 
 MarksTableData predictions() => MarksTableData.empty(tableType: '1-4').copyWith(
       cellMarks: {
@@ -24,12 +25,30 @@ MarksTableData predictions() => MarksTableData.empty(tableType: '1-4').copyWith(
       },
     );
 
+class _FakeResultService implements ResultService {
+  @override
+  Future<List<Map<String, dynamic>>> fetchResults() async => const [];
+
+  @override
+  Future<void> saveResult({
+    required String rollNo,
+    required String submissionId,
+    required String tableType,
+    required Map<String, Map<String, String>> marks,
+    required double grandTotal,
+    String? imagePath,
+  }) async {}
+}
+
 void main() {
   testWidgets(
       'Whole table submits without opening flagged cells; no confidence ticks',
       (tester) async {
     await tester.pumpWidget(
-        MaterialApp(home: VerificationScreen(marksTableData: predictions())));
+        MaterialApp(
+            home: VerificationScreen(
+                marksTableData: predictions(),
+                resultService: _FakeResultService())));
     await tester.pumpAndSettle();
     expect(find.text('15'), findsWidgets);
     expect(find.text('o7'), findsNothing);
@@ -48,9 +67,10 @@ void main() {
     final blank = find.byKey(const ValueKey('edit-1-d'));
     expect(
         find.descendant(of: blank, matching: find.byType(Icon)), findsNothing);
+    await tester.enterText(find.byType(TextFormField), 'ROLL001');
     await tester.tap(find.text('Verify & Submit'));
     await tester.pumpAndSettle();
-    expect(find.text('Marks Verified & Computed!'), findsOneWidget);
+    expect(find.text('Marks Verified & Saved!'), findsOneWidget);
     expect(find.text('Edit Mark'), findsNothing);
     expect(find.text('25'), findsWidgets);
   });
@@ -58,7 +78,10 @@ void main() {
   testWidgets('Optional Edit Mark dialog saves changes and respects maximum',
       (tester) async {
     await tester.pumpWidget(
-        MaterialApp(home: VerificationScreen(marksTableData: predictions())));
+        MaterialApp(
+            home: VerificationScreen(
+                marksTableData: predictions(),
+                resultService: _FakeResultService())));
     await tester.pumpAndSettle();
     final cell = find.byKey(const ValueKey('edit-1-a'));
     await tester.ensureVisible(cell);
@@ -77,9 +100,10 @@ void main() {
     expect(
         find.descendant(of: cell, matching: find.byType(Icon)), findsNothing);
     // Another untouched flagged cell does not block whole-table submission.
+    await tester.enterText(find.byType(TextFormField), 'ROLL001');
     await tester.tap(find.text('Verify & Submit'));
     await tester.pumpAndSettle();
-    expect(find.text('Marks Verified & Computed!'), findsOneWidget);
+    expect(find.text('Marks Verified & Saved!'), findsOneWidget);
   });
 
   testWidgets(

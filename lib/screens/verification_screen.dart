@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
@@ -9,6 +10,7 @@ import 'results_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
   final MarksTableData marksTableData;
+  final ResultService? resultService;
   final String? imagePath;
   final bool isSampleDemo;
   final int imageRotation;
@@ -16,6 +18,7 @@ class VerificationScreen extends StatefulWidget {
   const VerificationScreen({
     super.key,
     required this.marksTableData,
+    this.resultService,
     this.imagePath,
     this.isSampleDemo = false,
     this.imageRotation = 0,
@@ -28,6 +31,10 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final Set<String> _edited = {};
   final TextEditingController _rollNoController = TextEditingController();
+  late final String _submissionId = _newSubmissionId();
+  bool _isSubmitting = false;
+  late final ResultService _resultService =
+      widget.resultService ?? const SupabaseResultService();
 
   bool _isFlagged(String q, String p) {
     final result = widget.marksTableData.cellResults[q]?[p];
@@ -40,6 +47,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
   late String _activeTableType; // '1-4' or '5-8'
   late List<String> _activeQuestions;
   late Map<String, Map<String, TextEditingController>> _controllers;
+
+  String _newSubmissionId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+  }
 
   static const List<String> _allQuestions = [
     '1',
@@ -150,6 +168,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _submitVerification() async {
+    if (_isSubmitting) return;
+
     final rollNo = _rollNoController.text.trim();
     if (rollNo.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -180,24 +200,30 @@ class _VerificationScreenState extends State<VerificationScreen> {
       isVerified: true,
     );
 
-    final saved = await ResultService.saveResult(
-      rollNo: rollNo,
-      tableType: _activeTableType,
-      marks: updatedMarks,
-      grandTotal: _calculateGrandTotal(),
-      imagePath: widget.imagePath,
-    );
-
-    if (!mounted) return;
-
-    if (!saved) {
+    setState(() => _isSubmitting = true);
+    try {
+      await _resultService.saveResult(
+        rollNo: rollNo,
+        submissionId: _submissionId,
+        tableType: _activeTableType,
+        marks: updatedMarks,
+        grandTotal: _calculateGrandTotal(),
+        imagePath: widget.imagePath,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('The result was prepared, but saving to Supabase failed.'),
+        SnackBar(
+          content: Text('Could not save result: $error'),
+          duration: const Duration(seconds: 6),
         ),
       );
+      return;
     }
 
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
     _showVerificationSuccessDialog(verifiedData);
   }
 
@@ -244,7 +270,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'Marks Verified & Computed!',
+                  'Marks Verified & Saved!',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -801,11 +827,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   // Verify & Submit Button
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _submitVerification,
-                      icon: const Icon(Icons.check_circle_rounded),
-                      label: const Text(
-                        'Verify & Submit',
-                        style: TextStyle(
+                      onPressed: _isSubmitting ? null : _submitVerification,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.check_circle_rounded),
+                      label: Text(
+                        _isSubmitting ? 'Saving…' : 'Verify & Submit',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),

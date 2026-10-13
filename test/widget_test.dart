@@ -7,6 +7,7 @@ import 'package:my_app/screens/verification_screen.dart';
 import 'package:my_app/screens/image_source_screen.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/services/ocr_service.dart';
+import 'package:my_app/services/result_service.dart';
 
 class _FakeAuthService implements AuthService {
   const _FakeAuthService({this.hasSession = true});
@@ -26,6 +27,21 @@ class _FakeAuthService implements AuthService {
     required String fullName,
   }) async =>
       hasSession;
+}
+
+class _FakeResultService implements ResultService {
+  @override
+  Future<List<Map<String, dynamic>>> fetchResults() async => const [];
+
+  @override
+  Future<void> saveResult({
+    required String rollNo,
+    required String submissionId,
+    required String tableType,
+    required Map<String, Map<String, String>> marks,
+    required double grandTotal,
+    String? imagePath,
+  }) async {}
 }
 
 void main() {
@@ -244,6 +260,7 @@ void main() {
       MaterialApp(
         home: VerificationScreen(
           marksTableData: testData,
+          resultService: _FakeResultService(),
           isSampleDemo: false,
         ),
       ),
@@ -276,7 +293,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Find first TextField (Q5, part a = '10') and change it to 'N/A'
-    final firstField = find.byType(TextField).first;
+    final firstField = find.byType(TextField).at(1);
     await tester.enterText(firstField, 'N/A');
     await tester.pumpAndSettle();
 
@@ -291,11 +308,12 @@ void main() {
     // Tap Verify & Submit
     final submitBtn = find.text('Verify & Submit');
     await tester.ensureVisible(submitBtn);
+    await tester.enterText(find.byType(TextFormField), 'ROLL001');
     await tester.tap(submitBtn);
     await tester.pumpAndSettle();
 
     // Verify Success Modal
-    expect(find.text('Marks Verified & Computed!'), findsOneWidget);
+    expect(find.text('Marks Verified & Saved!'), findsOneWidget);
     expect(find.text('Scan Another Mark Sheet'), findsOneWidget);
   });
   for (final tableType in ['1-4', '5-8']) {
@@ -303,7 +321,9 @@ void main() {
         (WidgetTester tester) async {
       await tester.pumpWidget(MaterialApp(
         home: ImageProcessingScreen(
-            tableType: tableType, ocrService: const PlaceholderOcrService()),
+            tableType: tableType,
+            ocrService: const PlaceholderOcrService(),
+            resultService: _FakeResultService()),
       ));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
@@ -324,9 +344,10 @@ void main() {
       expect(find.text('12'), findsWidgets);
       final submit = find.text('Verify & Submit');
       await tester.ensureVisible(submit);
+      await tester.enterText(find.byType(TextFormField), 'ROLL001');
       await tester.tap(submit);
       await tester.pumpAndSettle();
-      expect(find.text('Marks Verified & Computed!'), findsOneWidget);
+      expect(find.text('Marks Verified & Saved!'), findsOneWidget);
       await tester.tap(find.text('Scan Another Mark Sheet'));
       await tester.pumpAndSettle();
       expect(find.byType(ImageSourceScreen), findsOneWidget);
