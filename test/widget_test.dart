@@ -5,14 +5,38 @@ import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/image_processing_screen.dart';
 import 'package:my_app/screens/verification_screen.dart';
 import 'package:my_app/screens/image_source_screen.dart';
+import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/services/ocr_service.dart';
+
+class _FakeAuthService implements AuthService {
+  const _FakeAuthService({this.hasSession = true});
+
+  final bool hasSession;
+
+  @override
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {}
+
+  @override
+  Future<bool> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async =>
+      hasSession;
+}
 
 void main() {
   testWidgets(
       'Screen 1 has ONLY the 2 scan method buttons and table type selector',
       (WidgetTester tester) async {
     const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(ocrService: service));
+    await tester.pumpWidget(const MarkSheetApp(
+      ocrService: service,
+      authService: _FakeAuthService(),
+    ));
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome back'), findsOneWidget);
@@ -50,7 +74,10 @@ void main() {
     WidgetTester tester,
   ) async {
     const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(ocrService: service));
+    await tester.pumpWidget(const MarkSheetApp(
+      ocrService: service,
+      authService: _FakeAuthService(),
+    ));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Sign up').first);
@@ -74,6 +101,36 @@ void main() {
         same(service));
     expect(find.text('MarkSheet OCR'), findsOneWidget);
     expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
+  });
+
+  testWidgets('Sign up asks for email confirmation when no session is created',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const MarkSheetApp(
+      authService: _FakeAuthService(hasSession: false),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sign up').first);
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Demo User');
+    await tester.enterText(fields.at(1), 'new.user@example.com');
+    await tester.enterText(fields.at(2), 'password123');
+    await tester.enterText(fields.at(3), 'password123');
+    final createAccountButton =
+        find.widgetWithText(FilledButton, 'Create account');
+    await tester.ensureVisible(createAccountButton);
+    await tester.tap(createAccountButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Account created. Check your email to confirm your account before logging in.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(ImageSourceScreen), findsNothing);
   });
 
   testWidgets(

@@ -25,6 +25,10 @@ In another terminal, run `flutter run`. Android emulator builds default to
 `http://10.0.2.2:8765`; desktop builds default to `http://127.0.0.1:8765`.
 For physical devices and HTTPS deployments, see the [connection instructions](obelens-ocr/README.md#flutter-connection).
 
+Email/password login and signup use the Supabase project configured in
+`lib/main.dart`. If email confirmation is enabled in Supabase Auth, new users
+must confirm their address before signing in.
+
 The [bundled handwriting evaluation](obelens-ocr/evaluation/README.md) reads 7/8
 clearly labeled numeric marks correctly and leaves 17/17 blank cells unresolved.
 One sheet is a development check, not a deployment accuracy estimate.

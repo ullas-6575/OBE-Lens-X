@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'image_source_screen.dart';
+import '../services/auth_service.dart';
 import '../services/ocr_service.dart';
 
 class AuthScreen extends StatefulWidget {
   final BaseOcrService? ocrService;
+  final AuthService? authService;
 
-  const AuthScreen({super.key, this.ocrService});
+  const AuthScreen({super.key, this.ocrService, this.authService});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -15,8 +19,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   static const _ink = Color(0xFF102A43);
   static const _blue = Color(0xFF2563EB);
   static const _teal = Color(0xFF0D9488);
-  static const _demoEmail = 'alok@gmail.com';
-  static const _demoPassword = '2207';
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -30,6 +32,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   bool _isSignUp = false;
   bool _hidePassword = true;
   bool _hideConfirmPassword = true;
+  bool _isSubmitting = false;
+
+  AuthService get _authService =>
+      widget.authService ?? const SupabaseAuthService();
 
   @override
   void initState() {
@@ -98,22 +104,57 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _submit() {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  Future<void> _submit() async {
+    if (_isSubmitting || !(_formKey.currentState?.validate() ?? false)) return;
 
-    if (!_isSignUp &&
-        (_emailController.text.trim().toLowerCase() != _demoEmail ||
-            _passwordController.text != _demoPassword)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Those details do not match the account.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
+    final isSignUp = _isSignUp;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final fullName = _nameController.text.trim();
+
+    setState(() => _isSubmitting = true);
+    try {
+      if (isSignUp) {
+        final hasSession = await _authService.signUp(
+          email: email,
+          password: password,
+          fullName: fullName,
+        );
+        if (!mounted) return;
+        if (!hasSession) {
+          _showMessage(
+            'Account created. Check your email to confirm your account before logging in.',
+          );
+          return;
+        }
+      } else {
+        await _authService.signInWithPassword(
+          email: email,
+          password: password,
+        );
+      }
+
+      if (mounted) _continueToHome();
+    } on AuthException catch (error) {
+      if (mounted) _showMessage(error.message);
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          'Unable to ${isSignUp ? 'create your account' : 'log in'}: $error',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
+  }
 
-    _continueToHome();
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   String? _validateEmail(String? value) {
@@ -351,10 +392,20 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
             ),
             child: Row(
               children: [
-                _modeButton('Log in',
-                    isSelected: !_isSignUp, onTap: () => _toggleMode(false)),
-                _modeButton('Sign up',
-                    isSelected: _isSignUp, onTap: () => _toggleMode(true)),
+                _modeButton(
+                  'Log in',
+                  isSelected: !_isSignUp,
+                  onTap: () {
+                    if (!_isSubmitting) _toggleMode(false);
+                  },
+                ),
+                _modeButton(
+                  'Sign up',
+                  isSelected: _isSignUp,
+                  onTap: () {
+                    if (!_isSubmitting) _toggleMode(true);
+                  },
+                ),
               ],
             ),
           ),
@@ -513,7 +564,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 SizedBox(
                   height: 54,
                   child: FilledButton(
-                    onPressed: _submit,
+                    onPressed: _isSubmitting ? null : _submit,
                     style: FilledButton.styleFrom(
                       backgroundColor: _blue,
                       foregroundColor: Colors.white,
@@ -525,8 +576,21 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        if (_isSubmitting) ...[
+                          const SizedBox(
+                            width: 17,
+                            height: 17,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                        ],
                         Text(
-                          _isSignUp ? 'Create account' : 'Log in',
+                          _isSubmitting
+                              ? (_isSignUp ? 'Creating account...' : 'Logging in...')
+                              : (_isSignUp ? 'Create account' : 'Log in'),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -557,7 +621,7 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 ),
               ),
               TextButton(
-                onPressed: () => _toggleMode(!_isSignUp),
+                onPressed: _isSubmitting ? null : () => _toggleMode(!_isSignUp),
                 style: TextButton.styleFrom(
                   foregroundColor: _blue,
                   padding: const EdgeInsets.only(left: 6),
