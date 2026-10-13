@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
+import '../services/result_service.dart';
 import '../widgets/edit_mark_dialog.dart';
 import 'image_source_screen.dart';
+import 'results_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
   final MarksTableData marksTableData;
@@ -25,6 +27,7 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final Set<String> _edited = {};
+  final TextEditingController _rollNoController = TextEditingController();
 
   bool _isFlagged(String q, String p) {
     final result = widget.marksTableData.cellResults[q]?[p];
@@ -75,12 +78,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   void dispose() {
+    _rollNoController.dispose();
     for (final q in _allQuestions) {
       for (final p in MarksTableData.parts) {
         _controllers[q]?[p]?.dispose();
       }
     }
     super.dispose();
+  }
+
+  void _openResultsScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const ResultsScreen()),
+    );
   }
 
   void _switchTableType(String type) {
@@ -139,7 +149,17 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
-  void _submitVerification() {
+  Future<void> _submitVerification() async {
+    final rollNo = _rollNoController.text.trim();
+    if (rollNo.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a roll number before submitting.'),
+        ),
+      );
+      return;
+    }
+
     final Map<String, Map<String, String>> updatedMarks = {};
     for (final q in _activeQuestions) {
       updatedMarks[q] = {};
@@ -159,6 +179,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
               p, _edited.contains('$q:$p') ? result.reviewed() : result)))),
       isVerified: true,
     );
+
+    final saved = await ResultService.saveResult(
+      rollNo: rollNo,
+      tableType: _activeTableType,
+      marks: updatedMarks,
+      grandTotal: _calculateGrandTotal(),
+      imagePath: widget.imagePath,
+    );
+
+    if (!mounted) return;
+
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The result was prepared, but saving to Supabase failed.'),
+        ),
+      );
+    }
 
     _showVerificationSuccessDialog(verifiedData);
   }
@@ -278,7 +316,29 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                 const SizedBox(height: 24),
 
-                // Action button to scan another
+                // Action buttons
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const ResultsScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.storage_rounded),
+                    label: const Text('View Saved Results'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
@@ -406,6 +466,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
         title: const Text('Verify Handwritten Marks'),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'View saved results',
+            onPressed: _openResultsScreen,
+            icon: const Icon(Icons.list_alt_rounded),
+          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (val) {
@@ -611,6 +676,20 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextFormField(
+                      controller: _rollNoController,
+                      textInputAction: TextInputAction.next,
+                      keyboardType: TextInputType.text,
+                      decoration: const InputDecoration(
+                        labelText: 'Roll No',
+                        hintText: 'Enter student roll number',
+                        prefixIcon: Icon(Icons.badge_rounded),
+                        border: OutlineInputBorder(),
                       ),
                     ),
 
