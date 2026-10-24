@@ -26,6 +26,7 @@ class SupabaseResultService implements ResultService {
     final response = await client
         .from('results')
         .select()
+        .isFilter('exam_id', null)
         .order('created_at', ascending: false);
 
     return response

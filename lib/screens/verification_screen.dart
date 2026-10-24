@@ -1,3 +1,4 @@
+import '../models/scan_workflow.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
@@ -9,6 +10,7 @@ import 'results_screen.dart';
 
 class VerificationScreen extends StatefulWidget {
   final MarksTableData marksTableData;
+  final ScanWorkflow? workflow;
   final ResultService? resultService;
   final String? imagePath;
   final bool isSampleDemo;
@@ -18,6 +20,7 @@ class VerificationScreen extends StatefulWidget {
     super.key,
     required this.marksTableData,
     this.resultService,
+    this.workflow,
     this.imagePath,
     this.isSampleDemo = false,
     this.imageRotation = 0,
@@ -78,6 +81,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ? MarksTableData.type1Questions
         : MarksTableData.type2Questions;
     _initControllers();
+    _rollNoController.text = widget.workflow?.rollNo ?? '';
   }
 
   void _initControllers() {
@@ -113,6 +117,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   void _switchTableType(String type) {
+    if (widget.workflow != null && type != widget.marksTableData.tableType) {
+      return;
+    }
     setState(() {
       _activeTableType = type;
       _activeQuestions = type == '1-4'
@@ -190,6 +197,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
     }
 
+    final validation =
+        widget.workflow?.validate(_activeTableType, updatedMarks);
+    if (validation != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(validation)));
+      return;
+    }
+
     final verifiedData = widget.marksTableData.copyWith(
       tableType: _activeTableType,
       questions: _activeQuestions,
@@ -201,6 +216,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       isVerified: true,
     );
 
+    if (widget.workflow != null) {
+      await widget.workflow!.review(verifiedData);
+      return;
+    }
     setState(() => _isSubmitting = true);
     try {
       await _resultService.saveResult(
@@ -372,12 +391,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   child: FilledButton.icon(
                     onPressed: () {
                       Navigator.of(context).pop();
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const ImageSourceScreen(),
-                        ),
-                        (route) => false,
-                      );
+                      final navigator = Navigator.of(this.context);
+                      if (navigator.canPop()) {
+                        navigator.popUntil((route) =>
+                            route.settings.name == ScanWorkflow.scannerRoute ||
+                            route.isFirst);
+                      } else {
+                        navigator.pushReplacement(MaterialPageRoute(
+                            builder: (_) => const ImageSourceScreen()));
+                      }
                     },
                     icon: const Icon(Icons.document_scanner_rounded),
                     label: const Text('Scan Another Mark Sheet'),
@@ -492,11 +514,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
         title: const Text('Verify Handwritten Marks'),
         centerTitle: true,
         actions: [
-          IconButton(
-            tooltip: 'View saved results',
-            onPressed: _openResultsScreen,
-            icon: const Icon(Icons.list_alt_rounded),
-          ),
+          if (widget.workflow == null)
+            IconButton(
+              tooltip: 'View saved results',
+              onPressed: _openResultsScreen,
+              icon: const Icon(Icons.list_alt_rounded),
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (val) {
@@ -655,12 +678,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               ),
                             ],
                             selected: {_activeTableType},
-                            onSelectionChanged:
-                                widget.marksTableData.cellResults.isNotEmpty
-                                    ? null
-                                    : (val) {
-                                        _switchTableType(val.first);
-                                      },
+                            onSelectionChanged: widget.workflow != null ||
+                                    widget.marksTableData.cellResults.isNotEmpty
+                                ? null
+                                : (val) {
+                                    _switchTableType(val.first);
+                                  },
                             style: ButtonStyle(
                               visualDensity: VisualDensity.compact,
                               shape: WidgetStateProperty.all(
@@ -709,6 +732,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                     TextFormField(
                       controller: _rollNoController,
+                      readOnly: widget.workflow != null,
                       textInputAction: TextInputAction.next,
                       keyboardType: TextInputType.text,
                       decoration: const InputDecoration(
@@ -838,7 +862,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             )
                           : const Icon(Icons.check_circle_rounded),
                       label: Text(
-                        _isSubmitting ? 'Saving…' : 'Verify & Submit',
+                        _isSubmitting
+                            ? 'Saving…'
+                            : (widget.workflow != null
+                                ? 'Review submission'
+                                : 'Verify & Submit'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

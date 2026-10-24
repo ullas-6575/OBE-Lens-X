@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'image_source_screen.dart';
+import 'password_screen.dart';
 import '../services/auth_service.dart';
 import '../services/ocr_service.dart';
 
 class AuthScreen extends StatefulWidget {
   final BaseOcrService? ocrService;
   final AuthService? authService;
+  final VoidCallback? onAuthenticated;
 
-  const AuthScreen({super.key, this.ocrService, this.authService});
+  const AuthScreen(
+      {super.key, this.ocrService, this.authService, this.onAuthenticated});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -80,6 +83,10 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   }
 
   void _continueToHome() {
+    if (widget.onAuthenticated != null) {
+      widget.onAuthenticated!();
+      return;
+    }
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -560,6 +567,14 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                         : null,
                   ),
                 ],
+                if (!_isSignUp)
+                  TextButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) =>
+                                  PasswordScreen(auth: _authService))),
+                      child: const Text('Forgot password?')),
                 const SizedBox(height: 23),
                 SizedBox(
                   height: 54,
@@ -589,7 +604,9 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                         ],
                         Text(
                           _isSubmitting
-                              ? (_isSignUp ? 'Creating account...' : 'Logging in...')
+                              ? (_isSignUp
+                                  ? 'Creating account...'
+                                  : 'Logging in...')
                               : (_isSignUp ? 'Create account' : 'Log in'),
                           style: const TextStyle(
                             fontSize: 15,

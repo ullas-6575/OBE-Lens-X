@@ -5,29 +5,9 @@ import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/image_processing_screen.dart';
 import 'package:my_app/screens/verification_screen.dart';
 import 'package:my_app/screens/image_source_screen.dart';
-import 'package:my_app/services/auth_service.dart';
+import 'support/workflow_fakes.dart';
 import 'package:my_app/services/ocr_service.dart';
 import 'package:my_app/services/result_service.dart';
-
-class _FakeAuthService implements AuthService {
-  const _FakeAuthService({this.hasSession = true});
-
-  final bool hasSession;
-
-  @override
-  Future<void> signInWithPassword({
-    required String email,
-    required String password,
-  }) async {}
-
-  @override
-  Future<bool> signUp({
-    required String email,
-    required String password,
-    required String fullName,
-  }) async =>
-      hasSession;
-}
 
 class _FakeResultService implements ResultService {
   @override
@@ -49,9 +29,10 @@ void main() {
       'Screen 1 has ONLY the 2 scan method buttons and table type selector',
       (WidgetTester tester) async {
     const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(
+    await tester.pumpWidget(MarkSheetApp(
       ocrService: service,
-      authService: _FakeAuthService(),
+      authService: FakeAuthService(),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 
@@ -63,6 +44,10 @@ void main() {
     );
     await tester.enterText(find.byType(TextFormField).at(1), '2207');
     await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Teacher dashboard'), findsOneWidget);
+    await tester.tap(find.text('Quick scan'));
     await tester.pumpAndSettle();
 
     // Verify Screen 1 title and header
@@ -90,9 +75,10 @@ void main() {
     WidgetTester tester,
   ) async {
     const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(
+    await tester.pumpWidget(MarkSheetApp(
       ocrService: service,
-      authService: _FakeAuthService(),
+      authService: FakeAuthService(),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 
@@ -110,6 +96,10 @@ void main() {
     await tester.tap(createAccountButton);
     await tester.pumpAndSettle();
 
+    expect(find.text('Teacher dashboard'), findsOneWidget);
+    await tester.tap(find.text('Quick scan'));
+    await tester.pumpAndSettle();
+
     expect(
         tester
             .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
@@ -121,8 +111,9 @@ void main() {
 
   testWidgets('Sign up asks for email confirmation when no session is created',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MarkSheetApp(
-      authService: _FakeAuthService(hasSession: false),
+    await tester.pumpWidget(MarkSheetApp(
+      authService: FakeAuthService(signupSession: false),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 
