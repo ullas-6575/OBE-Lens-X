@@ -22,6 +22,117 @@ class FakeExporter implements ReportExporter {
 }
 
 void main() {
+  Future<void> tapVisible(WidgetTester tester, String text) async {
+    await tester.scrollUntilVisible(find.text(text), 200,
+        scrollable: find
+            .descendant(
+                of: find.byType(ListView).last,
+                matching: find.byType(Scrollable))
+            .first);
+    await tester.ensureVisible(find.text(text));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(text));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Admin configures CO links, an offering, assignment and an exam',
+      (tester) async {
+    final repo = FakeWorkflowRepository();
+    await tester.pumpWidget(MarkSheetApp(
+        authService: FakeAuthService(hasSession: true, isAdmin: true),
+        workflowRepository: repo));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manage courses'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add course'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'CSE3200');
+    await tester.enterText(
+        find.byType(TextFormField).at(1), 'Software Engineering');
+    await tester.tap(find.text('Add course outcome'));
+    await tester.pumpAndSettle();
+    final dialogFields = find.descendant(
+        of: find.byType(AlertDialog), matching: find.byType(TextFormField));
+    await tester.enterText(dialogFields.at(1), 'Apply engineering principles');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'PO1');
+    await tapVisible(tester, 'Save course');
+    expect(repo.courseRows.single.outcomes.single.pos, ['PO1']);
+    await tester.tap(find.text('CSE3200 · Software Engineering'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add year / term offering'));
+    await tester.pumpAndSettle();
+    await tester.enterText(dialogFields.at(0), '2026');
+    await tester.enterText(dialogFields.at(1), 'Term 1');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2026 · Term 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Assign teachers'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pumpAndSettle();
+    expect(repo.assigned, ['teacher']);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add exam'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, 'Final');
+    await tester.tap(find.text('Required group Q5-8'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add question part'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Save exam configuration');
+    expect(repo.examRows.single.name, 'Final');
+    expect(repo.examRows.single.questions.single.co, 'CO1');
+    expect(find.text('Final'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'Review saves into the exam and saved corrections return to results',
+      (tester) async {
+    final repo = seededRepository();
+    await tester.pumpWidget(MaterialApp(
+        home: StudentScanPage(
+            repository: repo,
+            scan: const ScanContext(
+                sampleCourse, sampleOffering, sampleExam, 'ROLL001'))));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Choose group and scan'));
+    await tester.pumpAndSettle();
+    final source =
+        tester.widget<ImageSourceScreen>(find.byType(ImageSourceScreen));
+    final data = MarksTableData.empty(tableType: '1-4');
+    data.cellMarks['1']!['a'] = '5';
+    final review = source.workflow!.review(data);
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Save result');
+    await tapVisible(tester, 'All results');
+    await tester.pumpAndSettle();
+    expect(find.text('All results · Final'), findsOneWidget);
+    await tester.tap(find.text('ROLL001'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Correct saved marks'));
+    await tester.pumpAndSettle();
+    final mark = find
+        .byWidgetPredicate((w) => w is TextField && w.controller?.text == '5');
+    await tester.enterText(mark, '7');
+    await tester.tap(find.text('Review submission'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, 'Save result');
+    await tapVisible(tester, 'All results');
+    expect(find.text('All results · Final'), findsOneWidget);
+    expect(repo.resultRows.single['revision'], 2);
+    expect(repo.resultRows.single['marks']['1']['a'], '7');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await review;
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
       'Restored teacher session traverses course, offering, exam, student and scanner',
       (tester) async {
@@ -46,16 +157,22 @@ void main() {
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     expect(find.text('Student ROLL001'), findsOneWidget);
+    await tester.tap(find.text('Next student'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'ROLL002');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Student ROLL002'), findsOneWidget);
     await tester.tap(find.text('Choose group and scan'));
     await tester.pumpAndSettle();
     final source =
         tester.widget<ImageSourceScreen>(find.byType(ImageSourceScreen));
     expect(source.ocrService, same(ocr));
-    expect(source.workflow!.rollNo, 'ROLL001');
+    expect(source.workflow!.rollNo, 'ROLL002');
     expect(source.workflow!.groups, ['1-4']);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Student ROLL001'), findsOneWidget);
+    expect(find.text('Student ROLL002'), findsOneWidget);
   });
   testWidgets('Pending teacher cannot enter scanner or assigned courses',
       (tester) async {
@@ -125,6 +242,10 @@ void main() {
     expect(find.textContaining('Your reviewed marks are still here'),
         findsOneWidget);
     repo.failSave = false;
+    await tester.scrollUntilVisible(find.text('Retry save'), 150);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Retry save'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Retry save'));
     await tester.pumpAndSettle();
     expect(repo.submissions.length, 2);
@@ -158,11 +279,17 @@ void main() {
     repo.resultRows.single['revision'] = 2;
     data.cellMarks['1']!['a'] = '8';
     await tester.scrollUntilVisible(find.text('Export PDF'), 300);
+    await tester.ensureVisible(find.text('Export PDF'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Export PDF'));
     await tester.pumpAndSettle();
     expect(exporter.calls, 0);
     expect(find.textContaining('Marks or mappings changed.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Export PDF'), 300);
+    await tester.ensureVisible(find.text('Export PDF'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Export PDF'));
     await tester.pumpAndSettle();
     expect(exporter.calls, 1);

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
@@ -19,6 +19,25 @@ String reportCsv(List<List<String>> rows) => rows
         }).join(','))
     .join('\r\n');
 
+Future<Uint8List> reportPdf(String title, List<List<String>> rows) async {
+  final font = pw.Font.ttf(await rootBundle.load('assets/fonts/FreeSans.ttf'));
+  final document =
+      pw.Document(theme: pw.ThemeData.withFont(base: font, bold: font));
+  final columns = rows.fold<int>(
+      1, (count, row) => row.length > count ? row.length : count);
+  document.addPage(pw.MultiPage(
+      build: (_) => [
+            pw.Header(level: 0, child: pw.Text(title)),
+            pw.TableHelper.fromTextArray(
+                headerCount: 0,
+                data: rows
+                    .map((row) =>
+                        [...row, ...List.filled(columns - row.length, '')])
+                    .toList()),
+          ]));
+  return document.save();
+}
+
 class ShareReportExporter implements ReportExporter {
   const ShareReportExporter();
   @override
@@ -30,20 +49,7 @@ class ShareReportExporter implements ReportExporter {
         box == null ? null : box.localToGlobal(Offset.zero) & box.size;
     final Uint8List bytes;
     if (pdf) {
-      final document = pw.Document();
-      // Core PDF fonts cover Latin text. Keep identifiers readable without network font downloads.
-      String latin(String s) => s
-          .replaceAll('→', ' -> ')
-          .replaceAll('·', ' / ')
-          .replaceAll('–', '-')
-          .replaceAll(RegExp(r'[^\x20-\x7E\n]'), '?');
-      document.addPage(pw.MultiPage(
-          build: (_) => [
-                pw.Header(level: 0, child: pw.Text(latin(title))),
-                pw.TableHelper.fromTextArray(
-                    data: rows.map((r) => r.map(latin).toList()).toList()),
-              ]));
-      bytes = await document.save();
+      bytes = await reportPdf(title, rows);
     } else {
       bytes = Uint8List.fromList(utf8.encode('\uFEFF${reportCsv(rows)}'));
     }

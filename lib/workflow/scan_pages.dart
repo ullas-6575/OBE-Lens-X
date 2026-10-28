@@ -8,6 +8,7 @@ import '../services/ocr_service.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'ui.dart';
+import 'report_page.dart';
 
 String newSubmissionId() {
   final random = Random.secure();
@@ -32,10 +33,23 @@ class StudentScanPage extends StatefulWidget {
 }
 
 class _StudentScanPageState extends State<StudentScanPage> {
+  Future<void> _nextStudent() async {
+    final values = await inputDialog(
+        context, 'Student / script details', ['Student roll number']);
+    if (!mounted || values == null) return;
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => StudentScanPage(
+            repository: widget.repository,
+            ocrService: widget.ocrService,
+            scan: ScanContext(widget.scan.course, widget.scan.offering,
+                widget.scan.exam, values.first))));
+  }
+
   late Future<List<Json>> _results =
       widget.repository.results(widget.scan.exam.id);
-  void _reload() =>
-      setState(() => _results = widget.repository.results(widget.scan.exam.id));
+  void _reload() => setState(() {
+        _results = widget.repository.results(widget.scan.exam.id);
+      });
   Future<void> _scan(List<String> remaining) async {
     final route = ModalRoute.of(context);
     await openPage(
@@ -58,7 +72,8 @@ class _StudentScanPageState extends State<StudentScanPage> {
                   Navigator.of(context).popUntil((r) => r == route);
                   _reload();
                   if (next == 'next') {
-                    Navigator.pop(context);
+                    await _nextStudent();
+                    return;
                   }
                   if (next == 'results') {
                     await openPage(
@@ -107,7 +122,7 @@ class _StudentScanPageState extends State<StudentScanPage> {
                       const Text(
                           'All required groups are saved. Use results to correct saved marks.'),
                     OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: _nextStudent,
                         child: const Text('Next student')),
                     TextButton(
                         onPressed: () async {
@@ -234,8 +249,9 @@ class ExamResultsPage extends StatefulWidget {
 
 class _ExamResultsPageState extends State<ExamResultsPage> {
   late Future<List<Json>> _results = widget.repository.results(widget.exam.id);
-  void _reload() =>
-      setState(() => _results = widget.repository.results(widget.exam.id));
+  void _reload() => setState(() {
+        _results = widget.repository.results(widget.exam.id);
+      });
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'All results · ${widget.exam.name}', actions: [
@@ -245,6 +261,17 @@ class _ExamResultsPageState extends State<ExamResultsPage> {
             icon: const Icon(Icons.refresh))
       ], children: [
         Text('${widget.course.code} · ${widget.offering.label}'),
+        ActionTile(
+            'Calculate attainment',
+            'Check completeness and preview CO / PO reports',
+            Icons.analytics,
+            () => openPage(
+                context,
+                ReportPage(
+                    repository: widget.repository,
+                    course: widget.course,
+                    offering: widget.offering,
+                    exam: widget.exam))),
         LoadView(
             future: _results,
             retry: _reload,

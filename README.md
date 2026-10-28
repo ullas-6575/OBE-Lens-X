@@ -1,5 +1,9 @@
 # OBE Lens
 
+The complete course-to-report workflow and deployment steps are documented in
+[OBELens X workflow](docs/WORKFLOW.md). Apply the new academic-workflow migration
+before using the dashboards. Existing scanning and unassigned results are preserved.
+
 Flutter marks-table capture, four-corner crop/rotation, pretrained handwriting OCR,
 and teacher verification.
 
@@ -9,9 +13,10 @@ integer marks with crop evidence and confidence flags. Camera and gallery images
 first open **Adjust Table**, where automatic detection suggests four corners.
 Teachers can drag the corners, rotate in 90° steps, reset, and continue. Detection
 failure leaves a manual editor available. Flutter sends the original image plus
-normalized corners and rotation; Python straightens the selected table before
-reading its 28 cells. Flags are advisory; teachers edit only
-the marks they want to change and submit the table in one action.
+normalized corners and rotation. Android
+uses bundled OpenCV and ONNX locally; desktop/web uses Python to straighten the
+selected table and read its 28 cells. Flags are advisory; teachers edit only
+the marks they want to change and review the table as a whole.
 
 ## Run on a PC with Docker
 
@@ -22,8 +27,10 @@ with the Compose plugin (Linux). From the repository root, run:
 docker compose up --build -d
 ```
 
-Open **http://localhost:8080**. The existing login → upload → adjust table → OCR
-→ verify → save workflow runs in the browser. Uploading a photograph works on
+Open **http://localhost:8080**. The login → role dashboard → course/exam setup →
+scan → verify → save → attainment/report workflow runs in the browser.
+Quick scan retains the original
+unassigned scanning flow. Uploading a photograph works on
 desktop browsers; the camera button uses the browser's file/capture picker and
 may offer file selection instead of a live camera on a PC.
 
@@ -35,7 +42,7 @@ the built images. Allow several minutes and several GB of disk space for the
 first build; allocating at least 4 GB RAM to Docker is recommended.
 
 Login and saved results still use the Supabase project in `lib/main.dart` and
-require internet access. The existing `public.results` migration below must
+require internet access. The existing `public.results` migrations described in the workflow guide must
 already be applied to that project. Docker does not create a replacement
 database or change your account data. Scanned images are processed in memory.
 
@@ -99,14 +106,18 @@ The verification workflow saves one verified marks grid per row in
 grid as JSON, grand total, optional image path, authenticated teacher ID, and
 creation time. A single database operation stores the grid atomically, and a
 per-verification submission ID makes retries idempotent. Row Level Security
-allows signed-in users to insert results under their own account and read only
-their own results.
+allows approved teachers to save results under their own account. Unassigned
+results remain owner-only; exam results are visible to assigned teachers and
+administrators under the academic-workflow policies.
 
 Apply [`supabase/migrations/20261013200000_create_results.sql`](supabase/migrations/20261013200000_create_results.sql)
 to the connected Supabase project using the Supabase SQL Editor, then run the
 Flutter app. The `results` table and policies must exist before saving or
-viewing results. This migration matches the current OCR workflow; it does not
-yet define courses, exams, CO/PO mappings, or attainment reports.
+viewing results. This original migration is the base OCR result store. The additive
+[academic workflow migration](supabase/migrations/20261024164156_academic_workflow.sql)
+adds courses, offerings, assignments, exam mappings, revisions and access rules.
+Follow the [workflow setup guide](docs/WORKFLOW.md) for administrator access and
+password-reset redirects.
 
 The [bundled handwriting evaluation](obelens-ocr/evaluation/README.md) reads 7/8
 clearly labeled numeric marks correctly and leaves 17/17 blank cells unresolved.

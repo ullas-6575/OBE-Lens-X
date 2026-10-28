@@ -1,5 +1,19 @@
 -- Run against a disposable database after both migrations. Always rolls back fixtures.
 begin;
+-- Local equivalents of the relevant security-advisor checks.
+do $$ begin
+  if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
+      where n.nspname='public' and c.relkind='r' and not c.relrowsecurity) then
+    raise exception 'Public table without RLS';
+  end if;
+  if exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='public' and p.prosecdef) then
+    raise exception 'Public security-definer function';
+  end if;
+  if has_table_privilege('anon','public.results','SELECT') then
+    raise exception 'Anonymous result access';
+  end if;
+end $$;
 insert into auth.users(id,email) values
  ('00000000-0000-4000-8000-000000000001','admin@test.invalid'),
  ('00000000-0000-4000-8000-000000000002','teacher@test.invalid'),

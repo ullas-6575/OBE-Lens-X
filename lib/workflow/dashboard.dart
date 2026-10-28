@@ -44,15 +44,17 @@ class _DashboardState extends State<Dashboard> {
           children: [
             LoadView(
                 future: _profile,
-                retry: () =>
-                    setState(() => _profile = widget.repository.profile()),
+                retry: () => setState(() {
+                      _profile = widget.repository.profile();
+                    }),
                 builder: (profile) {
                   if (!widget.isAdmin && profile['approved'] != true) {
                     return Column(children: [
                       const Text('Your account is awaiting teacher approval.'),
                       TextButton(
-                          onPressed: () => setState(
-                              () => _profile = widget.repository.profile()),
+                          onPressed: () => setState(() {
+                                _profile = widget.repository.profile();
+                              }),
                           child: const Text('Check approval'))
                     ]);
                   }
@@ -121,7 +123,9 @@ class TeachersPage extends StatefulWidget {
 class _TeachersPageState extends State<TeachersPage> {
   late Future<List<Json>> _teachers = widget.repository.teachers();
   bool _busy = false;
-  void _reload() => setState(() => _teachers = widget.repository.teachers());
+  void _reload() => setState(() {
+        _teachers = widget.repository.teachers();
+      });
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'Manage teachers', children: [

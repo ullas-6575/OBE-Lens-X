@@ -20,7 +20,9 @@ class CourseListPage extends StatefulWidget {
 
 class _CourseListPageState extends State<CourseListPage> {
   late Future<List<Course>> _courses = widget.repository.courses();
-  void _reload() => setState(() => _courses = widget.repository.courses());
+  void _reload() => setState(() {
+        _courses = widget.repository.courses();
+      });
   @override
   Widget build(BuildContext context) => WorkflowPage(
           title: widget.isAdmin ? 'Manage courses' : 'Assigned courses',
@@ -214,8 +216,9 @@ class _CoursePageState extends State<CoursePage> {
   late Future<List<Offering>> _offerings =
       widget.repository.offerings(_course.id);
   bool _busy = false;
-  void _reload() =>
-      setState(() => _offerings = widget.repository.offerings(_course.id));
+  void _reload() => setState(() {
+        _offerings = widget.repository.offerings(_course.id);
+      });
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: '${_course.code} · Offerings', children: [
@@ -302,8 +305,9 @@ class OfferingPage extends StatefulWidget {
 
 class _OfferingPageState extends State<OfferingPage> {
   late Future<List<Exam>> _exams = widget.repository.exams(widget.offering.id);
-  void _reload() =>
-      setState(() => _exams = widget.repository.exams(widget.offering.id));
+  void _reload() => setState(() {
+        _exams = widget.repository.exams(widget.offering.id);
+      });
   @override
   Widget build(BuildContext context) => WorkflowPage(
           title: '${widget.course.code} · ${widget.offering.label}',
@@ -381,7 +385,9 @@ class _AssignmentPageState extends State<AssignmentPage> {
           children: [
             LoadView(
                 future: _data,
-                retry: () => setState(() => _data = _load()),
+                retry: () => setState(() {
+                      _data = _load();
+                    }),
                 builder: (data) => Column(children: [
                       for (final teacher in data.$1)
                         CheckboxListTile(
@@ -401,7 +407,9 @@ class _AssignmentPageState extends State<AssignmentPage> {
                                           teacher['id'],
                                           v!);
                                       if (mounted) {
-                                        setState(() => _data = _load());
+                                        setState(() {
+                                          _data = _load();
+                                        });
                                       }
                                     } catch (e) {
                                       if (context.mounted) {

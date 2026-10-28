@@ -193,6 +193,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
       updatedMarks[q] = {};
       for (final p in MarksTableData.parts) {
         final raw = _controllers[q]?[p]?.text.trim() ?? '';
+        if (widget.workflow != null &&
+            raw.isNotEmpty &&
+            raw.toUpperCase() != 'N/A' &&
+            !MarksTableData.isNumericMark(raw)) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Q$q$p must be an integer from 0–99 or N/A.')));
+          return;
+        }
         updatedMarks[q]![p] = MarksTableData.normalizeMark(raw);
       }
     }

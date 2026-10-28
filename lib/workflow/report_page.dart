@@ -11,8 +11,10 @@ class ReportSnapshot {
   final List<List<String>> rows;
   final List<String> issues;
   final bool exportable;
+  final AttainmentReport? attainment;
   const ReportSnapshot(
-      this.fingerprint, this.title, this.rows, this.issues, this.exportable);
+      this.fingerprint, this.title, this.rows, this.issues, this.exportable,
+      {this.attainment});
 }
 
 Future<ReportSnapshot> loadExamReport(WorkflowRepository repository,
@@ -71,7 +73,8 @@ Future<ReportSnapshot> loadExamReport(WorkflowRepository repository,
     results
   ]);
   return ReportSnapshot(fingerprint, '${course.code} - ${exam.name}', rows,
-      report.issues, report.exportable);
+      report.issues, report.exportable,
+      attainment: report);
 }
 
 class ReportPage extends StatefulWidget {
@@ -95,7 +98,9 @@ class _ReportPageState extends State<ReportPage> {
   late Future<ReportSnapshot> _report = _load();
   Future<ReportSnapshot> _load() => loadExamReport(
       widget.repository, widget.course, widget.offering, widget.exam);
-  void _reload() => setState(() => _report = _load());
+  void _reload() => setState(() {
+        _report = _load();
+      });
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'Report preview', children: [
@@ -226,18 +231,12 @@ class _ProgramReportPageState extends State<ProgramReportPage> {
                 '${course.code} / ${exam.name}: no eligible report or unresolved completeness/mapping issues.');
             continue;
           }
-          // Use the same freshly calculated snapshot for preview and aggregation.
-          var inPos = false;
-          for (final row in snapshot.rows) {
-            if (row.first == 'Course PO contribution') {
-              inPos = true;
-              continue;
-            }
-            if (inPos && RegExp(r'^PO\d+$').hasMatch(row.first)) {
-              coursePos
-                  .putIfAbsent(row.first, () => [])
-                  .add(double.parse(row[1]));
-            }
+          // Aggregate domain values at full precision, independent of display/export text.
+          for (final contribution
+              in snapshot.attainment!.poContribution.entries) {
+            coursePos
+                .putIfAbsent(contribution.key, () => [])
+                .add(contribution.value);
           }
         }
         if (coursePos.isNotEmpty) included++;
@@ -314,7 +313,9 @@ class _ProgramReportPageState extends State<ProgramReportPage> {
               builder: (report) => ReportPreview(
                   report: report,
                   load: _load,
-                  onStale: () => setState(() => _report = _load()),
+                  onStale: () => setState(() {
+                        _report = _load();
+                      }),
                   exporter: const ShareReportExporter())),
       ]);
 }

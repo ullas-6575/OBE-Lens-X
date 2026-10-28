@@ -13,7 +13,18 @@ Json row(String roll, String value, {String group = '1-4'}) => {
         ..[group == '1-4' ? '1' : '5']!['a'] = value,
     };
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   const calculator = AttainmentCalculator();
+  test('PDF export builds a document with uneven metadata and outcome rows',
+      () async {
+    final bytes = await reportPdf('CO–PO report', [
+      ['Course', 'CSE3200 · Software Engineering'],
+      ['CO', 'Eligible', 'Attained', 'Attainment %', 'Target met'],
+      ['CO1', '2', '1', '50', 'No'],
+    ]);
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
+    expect(bytes.length, greaterThan(1000));
+  });
   test('Threshold includes equality and PO links carry equal CO contributions',
       () {
     final report = calculator.calculate(sampleCourse, sampleExam,
