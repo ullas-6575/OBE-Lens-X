@@ -8,6 +8,7 @@ abstract interface class WorkflowRepository {
   Future<List<Json>> teachers();
   Future<void> approveTeacher(String id, bool approved);
   Future<List<Course>> courses();
+  Future<void> deleteCourse(String id);
   Future<void> saveCourse(
       {String? id,
       required String code,
@@ -48,6 +49,23 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
       (await client.from('courses').select().order('code'))
           .map(Course.fromJson)
           .toList();
+  @override
+  Future<void> deleteCourse(String id) async {
+    try {
+      final rows =
+          await client.from('courses').delete().eq('id', id).select('id');
+      if (rows.isEmpty) {
+        throw StateError('Course not found or deletion is not allowed.');
+      }
+    } on PostgrestException catch (error) {
+      if (error.code == '23503') {
+        throw StateError(
+            'This course has offerings and cannot be deleted while they exist.');
+      }
+      rethrow;
+    }
+  }
+
   @override
   Future<void> saveCourse(
       {String? id,

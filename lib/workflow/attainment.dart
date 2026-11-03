@@ -50,9 +50,6 @@ class AttainmentCalculator {
     for (final student in students.entries) {
       if (!exam.requiredGroups.every(student.value.containsKey)) {
         excluded++;
-        if (!exam.policy.excludeIncomplete) {
-          issues.add('${student.key}: missing table group.');
-        }
         continue;
       }
       final earned = <String, double>{};
@@ -60,7 +57,6 @@ class AttainmentCalculator {
       for (final q in exam.questions) {
         final marks = student.value[q.group]!['marks'] as Map;
         final value = (marks[q.question] as Map?)?[q.part]?.toString() ?? 'N/A';
-        if (value == 'N/A' && (q.optional || exam.policy.excludeNA)) continue;
         earned.update(q.co, (v) => v + MarksTableData.parseMarkValue(value),
             ifAbsent: () => MarksTableData.parseMarkValue(value));
         possible.update(q.co, (v) => v + q.maxMark,

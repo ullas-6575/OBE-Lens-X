@@ -9,8 +9,11 @@ configuration, persistent results, corrections, attainment and report export.
 
 1. Apply the existing results migration, then
    [`20261024164156_academic_workflow.sql`](../supabase/migrations/20261024164156_academic_workflow.sql)
-   to the intended Supabase project. The new migration is additive: existing
-   results keep `exam_id = null` and appear under **Previous unassigned results**.
+   and [`20261103140523_allow_admin_course_delete.sql`](../supabase/migrations/20261103140523_allow_admin_course_delete.sql)
+   and [`20261103174106_add_fixed_course_outcomes.sql`](../supabase/migrations/20261103174106_add_fixed_course_outcomes.sql)
+   and [`20261103174528_remove_attainment_exclusion_options.sql`](../supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql)
+   to the intended Supabase project. The migrations are additive: existing
+   results keep `exam_id = null` and remain separate from course results.
    Do not reapply the original migration to a database where it already ran.
 2. Assign the first administrator using a trusted Supabase administrator account:
    set that Auth user's **app metadata** to include `"role": "admin"`. Preserve
@@ -26,7 +29,7 @@ configuration, persistent results, corrections, attainment and report export.
 5. Admin: create courses and COs, select PO relationships, add year/term offerings,
    approve registered teachers, and assign teachers to offerings.
 6. Teacher: open an assigned offering, create an exam, define the used question
-   parts, maxima, CO mappings, required groups and attainment policy, then scan.
+   parts, maxima, CO mappings, required groups, score threshold and CO target, then scan.
 
 Existing accounts are approved when the migration is applied to preserve access.
 New accounts await approval after email verification. Students remain result
@@ -63,7 +66,7 @@ flowchart TD
     Teacher --> Assigned[Assigned courses / offering]
     Assigned --> Exam[Choose exam]
     Offering --> Exam
-    Exam --> Mapping[Question parts / maxima / CO / policy]
+    Exam --> Mapping[Question parts / maxima / CO / threshold / target]
     Mapping --> Exam
     Exam --> Student[Student / script details]
     Student --> Group[Choose missing group]
@@ -149,11 +152,10 @@ crops for training, or automatically learn from edits.
   survives retry, not application termination. Persistent offline drafts and
   background synchronization are not implemented. Login and saving still need
   Supabase connectivity.
-- Required groups must be present. An exam can exclude incomplete scripts or
-  block export until they are completed. Optional `N/A` parts are excluded from
-  possible marks; required `N/A` parts count zero unless the exam excludes them.
-  A student with no possible marks for a CO is ineligible for that CO. There is
-  no automatic best-N-of-M optional-question selection.
+- Incomplete scripts missing a required group are always excluded from attainment.
+  `N/A` marks count as zero against the configured maximum. A question part with
+  maximum zero is not mapped or included in attainment. A student with no
+  possible marks for a CO is ineligible for that CO.
 - For each CO, a student attains it when earned/possible marks meet the score
   threshold. CO attainment is attained students / eligible students. The target
   percentage determines whether the CO target is met. Defaults are 50% and 60%,
@@ -165,7 +167,7 @@ crops for training, or automatically learn from edits.
   programs would require a program entity and scoped authorization.
 - Reports are calculated from current data rather than persisted as authoritative
   snapshots. Before export the app fetches inputs again and rejects a stale
-  preview. Reports include policy, denominators and a generation timestamp.
+  preview. Reports include thresholds, denominators and a generation timestamp.
   Results are paginated to avoid Supabase's default row limit truncating reports.
 - PDF and UTF-8 CSV are exported through the platform share/download flow on
   Android and web. The CSV opens in spreadsheet applications and neutralizes
@@ -187,7 +189,7 @@ bash scripts/test_workflow_db.sh  # Requires PostgreSQL server/client tools
 save retry, recovery and stale-report protection. The existing OCR, crop, review
 and saved-results tests remain regression coverage.
 
-`supabase/tests/workflow.sql` runs after both migrations in a **disposable**
+`supabase/tests/workflow.sql` runs after all migrations in a **disposable**
 Postgres database with Supabase-compatible `auth.users`, `auth.uid()` and
 `auth.jwt()`. It wraps fixtures in a transaction and rolls them back. It covers
 role spoofing, assignment isolation, approval, idempotency, duplicate groups,

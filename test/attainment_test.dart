@@ -33,69 +33,37 @@ void main() {
     expect(report.outcomes.single.attained, 1);
     expect(report.poContribution['PO1'], closeTo(100 / 3, .0001));
   });
-  test(
-      'N/A exclusion changes denominator; all-excluded students are ineligible',
-      () {
+  test('N/A marks count as zero toward the maximum marks', () {
     const exam = Exam(
         id: 'exam',
         offeringId: 'offering',
         name: 'Final',
         requiredGroups: ['1-4'],
-        questions: [QuestionMapping('1', 'a', 'CO1', 10)],
-        policy: AttainmentPolicy(excludeNA: true));
+        questions: [QuestionMapping('1', 'a', 'CO1', 10)]);
     final report = calculator
         .calculate(sampleCourse, exam, [row('1', '5'), row('2', 'N/A')]);
-    expect(report.outcomes.single.eligible, 1);
-    expect(report.outcomes.single.percent, 100);
+    expect(report.outcomes.single.eligible, 2);
+    expect(report.outcomes.single.percent, 50);
   });
-  test(
-      'Incomplete scripts are excluded or block export according to exam policy',
-      () {
+  test('Incomplete scripts are always excluded from attainment reports', () {
     const questions = [
       QuestionMapping('1', 'a', 'CO1', 10),
       QuestionMapping('5', 'a', 'CO1', 10)
     ];
-    const exclude = Exam(
+    const exam = Exam(
         id: 'exam',
         offeringId: 'offering',
         name: 'Final',
         questions: questions);
-    const block = Exam(
-        id: 'exam',
-        offeringId: 'offering',
-        name: 'Final',
-        questions: questions,
-        policy: AttainmentPolicy(excludeIncomplete: false));
     final rows = [
       row('complete', '8'),
       row('complete', '8', group: '5-8'),
       row('partial', '9')
     ];
-    final report = calculator.calculate(sampleCourse, exclude, rows);
+    final report = calculator.calculate(sampleCourse, exam, rows);
     expect(report.excluded, 1);
     expect(report.outcomes.single.eligible, 1);
     expect(report.exportable, true);
-    expect(calculator.calculate(sampleCourse, block, rows).exportable, false);
-  });
-  test('Optional N/A is excluded even when required N/A counts zero', () {
-    const exam = Exam(
-        id: 'exam',
-        offeringId: 'offering',
-        name: 'Final',
-        requiredGroups: [
-          '1-4'
-        ],
-        questions: [
-          QuestionMapping('1', 'a', 'CO1', 10),
-          QuestionMapping('1', 'b', 'CO1', 20, optional: true)
-        ]);
-    expect(
-        calculator
-            .calculate(sampleCourse, exam, [row('1', '5')])
-            .outcomes
-            .single
-            .percent,
-        100);
   });
   test('Changed maxima, unmapped marks and duplicates block reports', () {
     expect(

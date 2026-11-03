@@ -3,6 +3,8 @@ import '../models/marks_table_data.dart';
 typedef Json = Map<String, dynamic>;
 
 class CourseOutcome {
+  static const codes = ['CO1', 'CO2', 'CO3', 'CO4', 'CO5', 'CO6'];
+
   final String code;
   final String description;
   final List<String> pos;
@@ -43,43 +45,24 @@ class Offering {
 class QuestionMapping {
   final String question, part, co;
   final int maxMark;
-  final bool optional;
-  const QuestionMapping(this.question, this.part, this.co, this.maxMark,
-      {this.optional = false});
+  const QuestionMapping(this.question, this.part, this.co, this.maxMark);
   String get key => '$question:$part';
   String get group => int.parse(question) <= 4 ? '1-4' : '5-8';
   factory QuestionMapping.fromJson(Json j) =>
-      QuestionMapping(j['question'], j['part'], j['co'], j['max_mark'],
-          optional: j['optional'] == true);
-  Json toJson() => {
-        'question': question,
-        'part': part,
-        'co': co,
-        'max_mark': maxMark,
-        'optional': optional
-      };
+      QuestionMapping(j['question'], j['part'], j['co'], j['max_mark']);
+  Json toJson() =>
+      {'question': question, 'part': part, 'co': co, 'max_mark': maxMark};
 }
 
 /// Policy is explicit and versioned with each exam. Checkbox PO links are unweighted.
 class AttainmentPolicy {
   final double scoreThreshold, targetPercent;
-  final bool excludeIncomplete, excludeNA;
-  const AttainmentPolicy(
-      {this.scoreThreshold = 50,
-      this.targetPercent = 60,
-      this.excludeIncomplete = true,
-      this.excludeNA = false});
+  const AttainmentPolicy({this.scoreThreshold = 50, this.targetPercent = 60});
   factory AttainmentPolicy.fromJson(Json j) => AttainmentPolicy(
       scoreThreshold: (j['score_threshold'] as num).toDouble(),
-      targetPercent: (j['target_percent'] as num).toDouble(),
-      excludeIncomplete: j['exclude_incomplete'],
-      excludeNA: j['exclude_na']);
-  Json toJson() => {
-        'score_threshold': scoreThreshold,
-        'target_percent': targetPercent,
-        'exclude_incomplete': excludeIncomplete,
-        'exclude_na': excludeNA
-      };
+      targetPercent: (j['target_percent'] as num).toDouble());
+  Json toJson() =>
+      {'score_threshold': scoreThreshold, 'target_percent': targetPercent};
 }
 
 class Exam {
@@ -121,7 +104,7 @@ class Exam {
           !MarksTableData.parts.contains(q.part) ||
           q.maxMark < 1 ||
           q.maxMark > 99 ||
-          !course.outcomes.any((c) => c.code == q.co)) {
+          !CourseOutcome.codes.contains(q.co)) {
         return 'Every question needs a valid part, maximum (1–99), and course outcome.';
       }
       if (!requiredGroups.contains(q.group)) {

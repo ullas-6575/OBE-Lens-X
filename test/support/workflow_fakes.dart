@@ -71,6 +71,14 @@ class FakeWorkflowRepository implements WorkflowRepository {
   @override
   Future<List<Course>> courses() async => courseRows;
   @override
+  Future<void> deleteCourse(String id) async {
+    if (offeringRows.any((offering) => offering.courseId == id)) {
+      throw StateError('Course has offerings.');
+    }
+    courseRows.removeWhere((course) => course.id == id);
+  }
+
+  @override
   Future<void> saveCourse(
       {String? id,
       required String code,

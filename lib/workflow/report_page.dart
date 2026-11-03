@@ -34,17 +34,9 @@ Future<ReportSnapshot> loadExamReport(WorkflowRepository repository,
     ['CO target', '${exam.policy.targetPercent}%'],
     ['Required groups', exam.requiredGroups.join(', ')],
     [
-      'N/A policy',
-      exam.policy.excludeNA
-          ? 'Excluded from denominator'
-          : 'Required cells count as zero'
+      'Students / incomplete excluded',
+      '${report.students} / ${report.excluded}'
     ],
-    ['Optional N/A', 'Excluded from denominator'],
-    [
-      'Incomplete policy',
-      exam.policy.excludeIncomplete ? 'Exclude script' : 'Block export'
-    ],
-    ['Students / excluded', '${report.students} / ${report.excluded}'],
     ['CO', 'Eligible', 'Attained', 'Attainment %', 'Target met'],
     for (final score in report.outcomes)
       [

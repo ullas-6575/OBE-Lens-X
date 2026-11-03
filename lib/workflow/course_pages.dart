@@ -75,39 +75,24 @@ class _CourseEditorState extends State<CourseEditor> {
   final _form = GlobalKey<FormState>();
   late final _code = TextEditingController(text: widget.course?.code);
   late final _title = TextEditingController(text: widget.course?.title);
-  late final List<CourseOutcome> _outcomes = [...?widget.course?.outcomes];
-  late bool _archived = widget.course?.archived ?? false;
+  late final List<CourseOutcome> _outcomes = [
+    for (var number = 1; number <= 6; number++)
+      widget.course?.outcomes.firstWhere(
+            (outcome) => outcome.code == 'CO$number',
+            orElse: () => CourseOutcome('CO$number', 'CO$number', const []),
+          ) ??
+          CourseOutcome('CO$number', 'CO$number', const []),
+    ...?widget.course?.outcomes
+        .where((outcome) => !RegExp(r'^CO[1-6]$').hasMatch(outcome.code)),
+  ];
+  late final bool _archived = widget.course?.archived ?? false;
   bool _busy = false;
+
   @override
   void dispose() {
     _code.dispose();
     _title.dispose();
     super.dispose();
-  }
-
-  Future<void> _outcome([int? index]) async {
-    final old = index == null ? null : _outcomes[index];
-    final values = await inputDialog(context, 'Course outcome', [
-      'CO code (e.g. CO1)',
-      'Description'
-    ], initial: [
-      old?.code ?? 'CO${_outcomes.length + 1}',
-      old?.description ?? ''
-    ]);
-    if (!mounted || values == null) return;
-    if (!RegExp(r'^CO[1-9][0-9]*$').hasMatch(values[0]) ||
-        _outcomes.indexed.any((e) => e.$1 != index && e.$2.code == values[0])) {
-      showError(context, 'Use a unique CO code, such as CO1.');
-      return;
-    }
-    setState(() {
-      final outcome = CourseOutcome(values[0], values[1], old?.pos ?? []);
-      if (index == null) {
-        _outcomes.add(outcome);
-      } else {
-        _outcomes[index] = outcome;
-      }
-    });
   }
 
   Future<void> _save() async {
@@ -143,57 +128,46 @@ class _CourseEditorState extends State<CourseEditor> {
                   decoration: const InputDecoration(labelText: 'Course title'),
                   validator: (v) => v!.trim().isEmpty ? 'Required' : null),
             ])),
-        SwitchListTile(
-            title: const Text('Archive course'),
-            subtitle: const Text('Preserve history and stop new scans'),
-            value: _archived,
-            onChanged: _busy ? null : (v) => setState(() => _archived = v)),
-        Text('Course outcomes and CO–PO links',
+        Text('Course outcomes and CO–PO mapping',
             style: Theme.of(context).textTheme.titleLarge),
         const Text(
-            'Checkboxes define relationships. Reports use an equal mean of linked CO percentages; no numeric weights are implied.'),
-        for (var i = 0; i < _outcomes.length; i++)
-          Card(
-              child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(children: [
-                    ListTile(
-                        title: Text(
-                            '${_outcomes[i].code}: ${_outcomes[i].description}'),
-                        onTap: _busy ? null : () => _outcome(i),
-                        trailing: IconButton(
-                            tooltip: 'Remove outcome',
-                            icon: const Icon(Icons.close),
-                            onPressed: _busy
-                                ? null
-                                : () => setState(() => _outcomes.removeAt(i)))),
-                    Wrap(spacing: 8, children: [
-                      for (var p = 1; p <= 12; p++)
-                        FilterChip(
-                            label: Text('PO$p'),
-                            selected: _outcomes[i].pos.contains('PO$p'),
-                            onSelected: _busy
-                                ? null
-                                : (v) => setState(() {
-                                      final co = _outcomes[i];
-                                      final pos = [...co.pos];
-                                      if (v) {
-                                        pos.add('PO$p');
-                                      } else {
-                                        pos.remove('PO$p');
-                                      }
-                                      _outcomes[i] = CourseOutcome(
-                                          co.code, co.description, pos);
-                                    }))
-                    ]),
-                  ]))),
-        OutlinedButton(
-            onPressed: _busy ? null : () => _outcome(),
-            child: const Text('Add course outcome')),
+            'Select each PO linked to a CO. Reports treat checked links equally; they do not imply numeric weights.'),
+        SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(horizontalMargin: 12, columnSpacing: 12, columns: [
+              const DataColumn(label: Text('Course Outcomes')),
+              for (var p = 1; p <= 12; p++) DataColumn(label: Text('PO$p')),
+            ], rows: [
+              for (var number = 1; number <= 6; number++) _outcomeRow(number),
+            ])),
         FilledButton(
             onPressed: _busy ? null : _save,
             child: Text(_busy ? 'Saving…' : 'Save course')),
       ]);
+
+  DataRow _outcomeRow(int number) {
+    final code = 'CO$number';
+    final index = _outcomes.indexWhere((outcome) => outcome.code == code);
+    final outcome = _outcomes[index];
+    return DataRow(cells: [
+      DataCell(Text(code)),
+      for (var p = 1; p <= 12; p++)
+        DataCell(Checkbox(
+            value: outcome.pos.contains('PO$p'),
+            onChanged: _busy
+                ? null
+                : (selected) => setState(() {
+                      final pos = [...outcome.pos];
+                      if (selected == true) {
+                        pos.add('PO$p');
+                      } else {
+                        pos.remove('PO$p');
+                      }
+                      _outcomes[index] =
+                          CourseOutcome(code, outcome.description, pos);
+                    }))),
+    ]);
+  }
 }
 
 class CoursePage extends StatefulWidget {
@@ -219,10 +193,89 @@ class _CoursePageState extends State<CoursePage> {
   void _reload() => setState(() {
         _offerings = widget.repository.offerings(_course.id);
       });
+
+  Future<List<String>?> _newOfferingDetails() {
+    var selectedYear = '1';
+    var selectedTerm = '1';
+    return showDialog<List<String>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+                    title: const Text('New offering'),
+                    content: SizedBox(
+                        width: 440,
+                        child:
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                          DropdownButtonFormField<String>(
+                              value: selectedYear,
+                              decoration:
+                                  const InputDecoration(labelText: 'Year'),
+                              items: [
+                                for (var year = 1; year <= 4; year++)
+                                  DropdownMenuItem(
+                                      value: '$year', child: Text('$year')),
+                              ],
+                              onChanged: (value) =>
+                                  setDialogState(() => selectedYear = value!)),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                              value: selectedTerm,
+                              decoration:
+                                  const InputDecoration(labelText: 'Term'),
+                              items: [
+                                for (var term = 1; term <= 2; term++)
+                                  DropdownMenuItem(
+                                      value: '$term', child: Text('$term')),
+                              ],
+                              onChanged: (value) =>
+                                  setDialogState(() => selectedTerm = value!)),
+                        ])),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Cancel')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(
+                              dialogContext, [selectedYear, selectedTerm]),
+                          child: const Text('Continue')),
+                    ])));
+  }
+
+  Future<void> _deleteCourse() async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+                title: const Text('Delete course?'),
+                content: const Text(
+                    'A course can be deleted only when it has no offerings. Courses with offerings cannot be deleted because they have linked exam and result history.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Delete course')),
+                ]));
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.repository.deleteCourse(_course.id);
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: '${_course.code} · Offerings', children: [
         Text(_course.title),
+        if (widget.isAdmin)
+          OutlinedButton(
+              onPressed: _busy ? null : _deleteCourse,
+              child: const Text('Delete course')),
         if (widget.isAdmin)
           OutlinedButton(
               onPressed: () async {
@@ -248,8 +301,7 @@ class _CoursePageState extends State<CoursePage> {
               onPressed: _busy
                   ? null
                   : () async {
-                      final values = await inputDialog(
-                          context, 'New offering', ['Academic year', 'Term']);
+                      final values = await _newOfferingDetails();
                       if (values == null || !mounted) return;
                       setState(() => _busy = true);
                       try {
@@ -270,18 +322,33 @@ class _CoursePageState extends State<CoursePage> {
                   if (offerings.isEmpty)
                     const Text('No offerings assigned or configured.'),
                   for (final offering in offerings)
-                    ActionTile(
-                        offering.label,
-                        'Teachers, exams and results',
-                        Icons.calendar_month,
-                        () => openPage(
-                            context,
-                            OfferingPage(
-                                repository: widget.repository,
-                                course: _course,
-                                offering: offering,
-                                isAdmin: widget.isAdmin,
-                                ocrService: widget.ocrService))),
+                    Card(
+                        child: Column(children: [
+                      ListTile(
+                          title: Text(offering.label),
+                          subtitle: const Text('Exams and results'),
+                          leading: const Icon(Icons.calendar_month),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => openPage(
+                              context,
+                              OfferingPage(
+                                  repository: widget.repository,
+                                  course: _course,
+                                  offering: offering,
+                                  isAdmin: widget.isAdmin,
+                                  ocrService: widget.ocrService))),
+                      if (widget.isAdmin)
+                        Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                                onPressed: () => openPage(
+                                    context,
+                                    AssignmentPage(
+                                        repository: widget.repository,
+                                        offering: offering)),
+                                icon: const Icon(Icons.person_add),
+                                label: const Text('Assign teachers'))),
+                    ])),
                 ]))
       ]);
 }
@@ -312,16 +379,6 @@ class _OfferingPageState extends State<OfferingPage> {
   Widget build(BuildContext context) => WorkflowPage(
           title: '${widget.course.code} · ${widget.offering.label}',
           children: [
-            if (widget.isAdmin)
-              ActionTile(
-                  'Assign teachers',
-                  'Approved accounts only',
-                  Icons.person_add,
-                  () => openPage(
-                      context,
-                      AssignmentPage(
-                          repository: widget.repository,
-                          offering: widget.offering))),
             if (!widget.course.archived)
               FilledButton(
                   onPressed: () async {

@@ -1,4 +1,4 @@
--- Run against a disposable database after both migrations. Always rolls back fixtures.
+-- Run against a disposable database after all migrations. Always rolls back fixtures.
 begin;
 -- Local equivalents of the relevant security-advisor checks.
 do $$ begin
@@ -55,7 +55,7 @@ with changed as (update public.profiles set approved=true where id='00000000-000
 select pg_temp.assert_true((select count(*)=0 from changed),'Teacher cannot approve another account');
 insert into public.exams(id,offering_id,name,required_groups,questions) values
  ('30000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','Final','["1-4"]',
- '[{"question":"1","part":"a","co":"CO1","max_mark":10,"optional":false}]');
+ '[{"question":"1","part":"a","co":"CO1","max_mark":10}]');
 select pg_temp.must_fail($q$insert into public.exams(offering_id,name) values
  ('20000000-0000-4000-8000-000000000002','Forbidden')$q$,'unavailable');
 

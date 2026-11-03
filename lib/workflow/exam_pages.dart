@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/ocr_service.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -115,57 +116,171 @@ class _ExamEditorState extends State<ExamEditor> {
       TextEditingController(text: widget.exam.policy.scoreThreshold.toString());
   late final _target =
       TextEditingController(text: widget.exam.policy.targetPercent.toString());
-  late final _questions = [...widget.exam.questions];
-  late final _groups = {...widget.exam.requiredGroups};
-  late bool _excludeIncomplete = widget.exam.policy.excludeIncomplete;
-  late bool _excludeNA = widget.exam.policy.excludeNA;
+  final Map<String, TextEditingController> _maxMarkControllers = {};
+  final Map<String, String> _cellOutcomes = {};
+  late final _groups = <String>{
+    if (widget.exam.id.isNotEmpty) ...widget.exam.requiredGroups,
+  };
   bool _busy = false;
   bool get _disabled => _busy || widget.readOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final group in _groups) {
+      _initializeGroupCells(group);
+    }
+  }
+
   @override
   void dispose() {
     _name.dispose();
     _threshold.dispose();
     _target.dispose();
+    for (final controller in _maxMarkControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _question([int? index]) async {
-    final old = index == null ? null : _questions[index];
-    final input = await inputDialog(context, 'Question mapping', [
-      'Question (1–8)',
-      'Part (a–g)',
-      'Maximum marks (1–99)',
-      'CO code'
-    ], initial: [
-      old?.question ?? '1',
-      old?.part ?? 'a',
-      old?.maxMark.toString() ?? '10',
-      old?.co ?? 'CO1'
-    ]);
-    if (!mounted || input == null) return;
-    final maximum = int.tryParse(input[2]);
-    if (!RegExp(r'^[1-8]$').hasMatch(input[0]) ||
-        !RegExp(r'^[a-g]$').hasMatch(input[1]) ||
-        maximum == null ||
-        maximum < 1 ||
-        maximum > 99 ||
-        !widget.course.outcomes.any((c) => c.code == input[3]) ||
-        _questions.indexed.any(
-            (e) => e.$1 != index && e.$2.key == '${input[0]}:${input[1]}')) {
-      showError(context,
-          'Use a unique question part, a maximum from 1–99, and a CO defined for this course.');
-      return;
-    }
-    setState(() {
-      final q = QuestionMapping(input[0], input[1], input[3], maximum,
-          optional: old?.optional ?? false);
-      if (index == null) {
-        _questions.add(q);
-      } else {
-        _questions[index] = q;
+  List<String> _questionsInGroup(String group) =>
+      group == '1-4' ? ['1', '2', '3', '4'] : ['5', '6', '7', '8'];
+
+  String _cellKey(String question, String part) => '$question:$part';
+
+  void _initializeGroupCells(String group) {
+    for (final question in _questionsInGroup(group)) {
+      for (final part in 'abcdefg'.split('')) {
+        final key = _cellKey(question, part);
+        QuestionMapping? existing;
+        for (final mapping in widget.exam.questions) {
+          if (mapping.question == question && mapping.part == part) {
+            existing = mapping;
+            break;
+          }
+        }
+        _maxMarkControllers.putIfAbsent(
+            key,
+            () => TextEditingController(
+                text: existing?.maxMark.toString() ?? '0'));
+        _cellOutcomes[key] = existing?.co ?? CourseOutcome.codes.first;
       }
-      _groups.add(q.group);
+    }
+  }
+
+  void _toggleGroup(String group, bool selected) {
+    setState(() {
+      if (selected) {
+        _groups.add(group);
+        _initializeGroupCells(group);
+      } else {
+        _groups.remove(group);
+        for (final question in _questionsInGroup(group)) {
+          for (final part in 'abcdefg'.split('')) {
+            final key = _cellKey(question, part);
+            _maxMarkControllers.remove(key)?.dispose();
+            _cellOutcomes.remove(key);
+          }
+        }
+      }
     });
+  }
+
+  List<QuestionMapping>? _buildMappings() {
+    final mappings = <QuestionMapping>[];
+    for (final group in _groups) {
+      for (final question in _questionsInGroup(group)) {
+        for (final part in 'abcdefg'.split('')) {
+          final key = _cellKey(question, part);
+          final text = _maxMarkControllers[key]?.text.trim() ?? '0';
+          final maximum = int.tryParse(text);
+          if (maximum == null || maximum < 0 || maximum > 99) {
+            showError(context,
+                'Q$question$part must have a maximum from 0 to 99. Use 0 when that part does not exist.');
+            return null;
+          }
+          if (maximum == 0) continue;
+          final co = _cellOutcomes[key];
+          if (co == null || !CourseOutcome.codes.contains(co)) {
+            showError(context, 'Choose a course outcome for Q$question$part.');
+            return null;
+          }
+          mappings.add(QuestionMapping(question, part, co, maximum));
+        }
+      }
+    }
+    return mappings;
+  }
+
+  Widget _maximumCell(String question, String part) {
+    final key = _cellKey(question, part);
+    return SizedBox(
+        width: 76,
+        child: TextField(
+            controller: _maxMarkControllers[key],
+            enabled: !_disabled,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            maxLength: 2,
+            decoration: const InputDecoration(
+                labelText: 'Max mark',
+                isDense: true,
+                counterText: '',
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 6, vertical: 8))));
+  }
+
+  Widget _outcomeCell(String question, String part) {
+    final key = _cellKey(question, part);
+    const outcomes = CourseOutcome.codes;
+    final selectedOutcome = _cellOutcomes[key];
+    return SizedBox(
+        width: 88,
+        child: DropdownButtonFormField<String>(
+            value: outcomes.contains(selectedOutcome) ? selectedOutcome : null,
+            isExpanded: true,
+            decoration: const InputDecoration(
+                labelText: 'CO',
+                isDense: true,
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 6, vertical: 8)),
+            items: [
+              for (final outcome in outcomes)
+                DropdownMenuItem(value: outcome, child: Text(outcome)),
+            ],
+            onChanged: _disabled
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    setState(() => _cellOutcomes[key] = value);
+                  }));
+  }
+
+  Widget _questionMatrix(
+      String group, String title, Widget Function(String, String) cellBuilder) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+              horizontalMargin: 8,
+              columnSpacing: 8,
+              dataRowMinHeight: 56,
+              dataRowMaxHeight: 64,
+              columns: [
+                const DataColumn(label: Text('Question')),
+                for (final part in 'abcdefg'.split(''))
+                  DataColumn(label: Text(part)),
+              ],
+              rows: [
+                for (final question in _questionsInGroup(group))
+                  DataRow(cells: [
+                    DataCell(Text('Q$question')),
+                    for (final part in 'abcdefg'.split(''))
+                      DataCell(cellBuilder(question, part)),
+                  ]),
+              ])),
+    ]);
   }
 
   Future<void> _save() async {
@@ -184,18 +299,17 @@ class _ExamEditorState extends State<ExamEditor> {
           context, 'Enter an exam name and percentages between 0 and 100.');
       return;
     }
+    final mappings = _buildMappings();
+    if (mappings == null) return;
     final exam = Exam(
         id: widget.exam.id,
         offeringId: widget.exam.offeringId,
         name: _name.text.trim(),
-        questions: _questions,
+        questions: mappings,
         requiredGroups: _groups.toList()..sort(),
         revision: widget.exam.revision,
-        policy: AttainmentPolicy(
-            scoreThreshold: threshold,
-            targetPercent: target,
-            excludeIncomplete: _excludeIncomplete,
-            excludeNA: _excludeNA));
+        policy:
+            AttainmentPolicy(scoreThreshold: threshold, targetPercent: target));
     final error = exam.validate(widget.course);
     if (error != null) {
       showError(context, error);
@@ -219,55 +333,25 @@ class _ExamEditorState extends State<ExamEditor> {
             controller: _name,
             enabled: !_disabled,
             decoration: const InputDecoration(labelText: 'Exam name')),
-        Text(
-            'Available outcomes: ${widget.course.outcomes.map((c) => c.code).join(', ')}'),
         const Text(
-            'Configure only the rubric cells used in this exam. Unmapped cells must remain N/A.'),
+            'Select a question group to configure its questions. Enter the maximum mark and course outcome for each part a–g. Leave the maximum at 0 when that part does not exist.'),
         Wrap(spacing: 12, children: [
           for (final group in ['1-4', '5-8'])
             FilterChip(
-                label: Text('Required group Q$group'),
+                label: Text('Questions $group · all parts'),
                 selected: _groups.contains(group),
-                onSelected: _disabled
-                    ? null
-                    : (v) => setState(() {
-                          if (v) {
-                            _groups.add(group);
-                          } else {
-                            _groups.remove(group);
-                          }
-                        }))
+                onSelected:
+                    _disabled ? null : (value) => _toggleGroup(group, value))
         ]),
-        for (var i = 0; i < _questions.length; i++)
-          Card(
-              child: Column(children: [
-            ListTile(
-                title: Text(
-                    'Q${_questions[i].question}${_questions[i].part} · ${_questions[i].maxMark} marks → ${_questions[i].co}'),
-                onTap: _disabled ? null : () => _question(i),
-                trailing: IconButton(
-                    tooltip: 'Remove mapping',
-                    icon: const Icon(Icons.close),
-                    onPressed: _disabled
-                        ? null
-                        : () => setState(() => _questions.removeAt(i)))),
-            CheckboxListTile(
-                title: const Text('Optional: exclude when N/A'),
-                value: _questions[i].optional,
-                onChanged: _disabled
-                    ? null
-                    : (v) => setState(() {
-                          final q = _questions[i];
-                          _questions[i] = QuestionMapping(
-                              q.question, q.part, q.co, q.maxMark,
-                              optional: v!);
-                        })),
-          ])),
-        OutlinedButton(
-            onPressed: _disabled ? null : () => _question(),
-            child: const Text('Add question part')),
+        for (final group in ['1-4', '5-8'])
+          if (_groups.contains(group)) ...[
+            _questionMatrix(
+                group, 'Questions $group · maximum marks', _maximumCell),
+            _questionMatrix(
+                group, 'Questions $group · course outcomes', _outcomeCell),
+          ],
         const Divider(),
-        Text('Attainment policy',
+        Text('Attainment thresholds and target',
             style: Theme.of(context).textTheme.titleLarge),
         TextFormField(
             controller: _threshold,
@@ -281,23 +365,8 @@ class _ExamEditorState extends State<ExamEditor> {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
                 labelText: 'Target percentage of eligible students (%)')),
-        SwitchListTile(
-            title: const Text('Exclude incomplete scripts'),
-            subtitle:
-                const Text('When off, incomplete scripts block report export.'),
-            value: _excludeIncomplete,
-            onChanged: _disabled
-                ? null
-                : (v) => setState(() => _excludeIncomplete = v)),
-        SwitchListTile(
-            title: const Text('Exclude N/A from the denominator'),
-            subtitle: const Text(
-                'When off, required N/A cells count as zero. Optional N/A cells are always excluded.'),
-            value: _excludeNA,
-            onChanged:
-                _disabled ? null : (v) => setState(() => _excludeNA = v)),
         const Text(
-            'CO attainment = eligible students meeting the score threshold ÷ eligible students. PO contribution = equal mean of linked CO percentages. All-optional or excluded cells with no possible marks are ineligible.'),
+            'CO attainment = eligible students meeting the score threshold ÷ eligible students. PO contribution = equal mean of linked CO percentages. N/A marks count as zero.'),
         if (!widget.readOnly)
           FilledButton(
               onPressed: _busy ? null : _save,
