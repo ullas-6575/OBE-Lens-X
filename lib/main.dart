@@ -14,6 +14,7 @@ Future<void> main() async {
     bootstrap(
       authService: LocalPreviewAuthService(),
       workflowRepository: LocalPreviewWorkflowRepository(),
+      enableTeacherPreview: true,
     );
     return;
   }

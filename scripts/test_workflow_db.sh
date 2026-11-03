@@ -19,4 +19,5 @@ psql -X -h "$test_dir" -d postgres -v ON_ERROR_STOP=1 \
   -f "$project_dir/supabase/migrations/20261103140523_allow_admin_course_delete.sql" \
   -f "$project_dir/supabase/migrations/20261103174106_add_fixed_course_outcomes.sql" \
   -f "$project_dir/supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql" \
+  -f "$project_dir/supabase/migrations/20261104000440_limit_teacher_course_visibility.sql" \
   -f "$project_dir/supabase/tests/workflow.sql"

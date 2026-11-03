@@ -12,6 +12,7 @@ configuration, persistent results, corrections, attainment and report export.
    and [`20261103140523_allow_admin_course_delete.sql`](../supabase/migrations/20261103140523_allow_admin_course_delete.sql)
    and [`20261103174106_add_fixed_course_outcomes.sql`](../supabase/migrations/20261103174106_add_fixed_course_outcomes.sql)
    and [`20261103174528_remove_attainment_exclusion_options.sql`](../supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql)
+   and [`20261104000440_limit_teacher_course_visibility.sql`](../supabase/migrations/20261104000440_limit_teacher_course_visibility.sql)
    to the intended Supabase project. The migrations are additive: existing
    results keep `exam_id = null` and remain separate from course results.
    Do not reapply the original migration to a database where it already ran.
@@ -27,7 +28,7 @@ configuration, persistent results, corrections, attainment and report export.
    preserved. Another deployment can use `SUPABASE_URL` and
    `SUPABASE_PUBLISHABLE_KEY` through `--dart-define`.
 5. Admin: create courses and COs, select PO relationships, add year/term offerings,
-   approve registered teachers, and assign teachers to offerings.
+   and assign approved teachers. Teacher account approval is handled outside the dashboard.
 6. Teacher: open an assigned offering, create an exam, define the used question
    parts, maxima, CO mappings, required groups, score threshold and CO target, then scan.
 
@@ -58,7 +59,6 @@ flowchart TD
     Approval -->|No| Pending[Await approval / check again]
     Pending --> Approval
     Approval -->|Yes| Teacher[Teacher dashboard]
-    Admin --> Teachers[Manage teachers / approve]
     Admin --> Courses[Manage courses]
     Courses --> Config[Course / CO / PO configuration]
     Courses --> Offering[Year / term offering]
@@ -90,8 +90,6 @@ flowchart TD
     Exam --> Report[Completeness / CO attainment / PO contribution]
     Report --> Preview[Report preview]
     Preview --> Export[PDF / spreadsheet CSV]
-    Admin --> Program[Program aggregation by year / term]
-    Program --> Preview
 ```
 
 The authenticated navigator is destroyed on sign-out or session loss. Back
@@ -134,7 +132,8 @@ crops for training, or automatically learn from edits.
   reference that offering; results reference their exam. Course records are
   archived instead of deleted. Archiving blocks new course results and edits
   while preserving reporting access.
-- RLS restricts teachers to approved accounts and assigned offerings. Admin
+- RLS restricts teachers to approved accounts and assigned offerings. Teachers
+  can read only courses with an offering assigned to their account. Admin
   authorization uses signed app metadata. The save RPC uses invoker security,
   so it remains subject to RLS. The only definer function is the private Auth
   trigger that creates an unapproved profile; clients cannot execute it.

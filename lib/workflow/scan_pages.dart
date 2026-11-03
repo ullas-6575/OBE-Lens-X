@@ -5,6 +5,7 @@ import '../models/scan_workflow.dart';
 import '../screens/image_source_screen.dart';
 import '../screens/verification_screen.dart';
 import '../services/ocr_service.dart';
+import '../widgets/marks_grid_table.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'ui.dart';
@@ -33,6 +34,43 @@ class StudentScanPage extends StatefulWidget {
 }
 
 class _StudentScanPageState extends State<StudentScanPage> {
+  bool _started = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScan());
+  }
+
+  Future<void> _startScan() async {
+    if (_started || !mounted) return;
+    _started = true;
+    try {
+      final results = await widget.repository.results(widget.scan.exam.id);
+      if (!mounted) return;
+      final saved = results
+          .where((r) => r['roll_no'] == widget.scan.rollNo)
+          .map((r) => r['table_type'])
+          .toSet();
+      final remaining = widget.scan.exam.requiredGroups
+          .where((group) => !saved.contains(group))
+          .toList();
+      if (remaining.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'All required groups are already scanned. Use All results to view or correct marks.')));
+        Navigator.of(context).pop();
+        return;
+      }
+      await _scan(remaining);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Could not load scan status: $error');
+      }
+    }
+  }
+
   Future<void> _nextStudent() async {
     final values = await inputDialog(
         context, 'Student / script details', ['Student roll number']);
@@ -45,13 +83,9 @@ class _StudentScanPageState extends State<StudentScanPage> {
                 widget.scan.exam, values.first))));
   }
 
-  late Future<List<Json>> _results =
-      widget.repository.results(widget.scan.exam.id);
-  void _reload() => setState(() {
-        _results = widget.repository.results(widget.scan.exam.id);
-      });
   Future<void> _scan(List<String> remaining) async {
     final route = ModalRoute.of(context);
+    var handled = false;
     await openPage(
         context,
         ImageSourceScreen(
@@ -67,10 +101,20 @@ class _StudentScanPageState extends State<StudentScanPage> {
                       SubmissionPage(
                           repository: widget.repository,
                           scan: widget.scan,
-                          data: data));
+                          data: data,
+                          remainingGroups: remaining
+                              .where((group) => group != data.tableType)
+                              .toList()));
                   if (!mounted || next == null) return;
+                  handled = true;
                   Navigator.of(context).popUntil((r) => r == route);
-                  _reload();
+                  if (next == 'remaining') {
+                    final nextGroups = remaining
+                        .where((group) => group != data.tableType)
+                        .toList();
+                    if (nextGroups.isNotEmpty) await _scan(nextGroups);
+                    return;
+                  }
                   if (next == 'next') {
                     await _nextStudent();
                     return;
@@ -85,59 +129,34 @@ class _StudentScanPageState extends State<StudentScanPage> {
                             exam: widget.scan.exam));
                   }
                 })));
+    if (mounted && !handled) {
+      setState(() => _error = 'Scan cancelled. Tap Scan to try again.');
+    }
   }
 
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'Student ${widget.scan.rollNo}', children: [
         Text(widget.scan.label),
-        LoadView(
-            future: _results,
-            retry: _reload,
-            builder: (results) {
-              final saved = results
-                  .where((r) => r['roll_no'] == widget.scan.rollNo)
-                  .map((r) => r['table_type'])
-                  .toSet();
-              final remaining = widget.scan.exam.requiredGroups
-                  .where((g) => !saved.contains(g))
-                  .toList();
-              return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final group in widget.scan.exam.requiredGroups)
-                      ListTile(
-                          title: Text('Questions $group'),
-                          subtitle: Text(saved.contains(group)
-                              ? 'Saved'
-                              : 'Missing group'),
-                          leading: Icon(saved.contains(group)
-                              ? Icons.check_circle
-                              : Icons.pending_outlined)),
-                    if (remaining.isNotEmpty)
-                      FilledButton(
-                          onPressed: () => _scan(remaining),
-                          child: const Text('Choose group and scan')),
-                    if (remaining.isEmpty)
-                      const Text(
-                          'All required groups are saved. Use results to correct saved marks.'),
-                    OutlinedButton(
-                        onPressed: _nextStudent,
-                        child: const Text('Next student')),
-                    TextButton(
-                        onPressed: () async {
-                          await openPage(
-                              context,
-                              ExamResultsPage(
-                                  repository: widget.repository,
-                                  course: widget.scan.course,
-                                  offering: widget.scan.offering,
-                                  exam: widget.scan.exam));
-                          if (mounted) _reload();
-                        },
-                        child: const Text('All results')),
-                  ]);
-            })
+        if (_error == null)
+          const Padding(
+              padding: EdgeInsets.all(32),
+              child: Center(child: CircularProgressIndicator()))
+        else ...[
+          Text(_error!),
+          FilledButton(
+              onPressed: () {
+                setState(() {
+                  _error = null;
+                  _started = false;
+                });
+                _startScan();
+              },
+              child: const Text('Scan')),
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Back')),
+        ],
       ]);
 }
 
@@ -146,12 +165,14 @@ class SubmissionPage extends StatefulWidget {
   final ScanContext scan;
   final MarksTableData data;
   final Json? previous;
+  final List<String> remainingGroups;
   const SubmissionPage(
       {super.key,
       required this.repository,
       required this.scan,
       required this.data,
-      this.previous});
+      this.previous,
+      this.remainingGroups = const []});
   @override
   State<SubmissionPage> createState() => _SubmissionPageState();
 }
@@ -192,14 +213,7 @@ class _SubmissionPageState extends State<SubmissionPage> {
             if (widget.previous != null)
               Text(
                   'Revision ${widget.previous!['revision']} → ${(widget.previous!['revision'] as int) + 1}'),
-            for (final q in widget.data.questions)
-              ListTile(
-                  title: Text('Question $q'),
-                  subtitle: Text(widget.data.cellMarks[q]!.entries
-                      .map((e) => '${e.key}: ${e.value}')
-                      .join(' · ')),
-                  trailing: Text(
-                      widget.data.calculateColumnTotal(q).toStringAsFixed(0))),
+            MarksGridTable(marks: widget.data.cellMarks),
             Text('Total: ${widget.data.grandTotal.toStringAsFixed(0)}',
                 style: Theme.of(context).textTheme.headlineSmall),
             if (_error != null)
@@ -218,17 +232,19 @@ class _SubmissionPageState extends State<SubmissionPage> {
                   onPressed: _busy ? null : () => Navigator.pop(context),
                   child: const Text('Back to verification')),
             if (_saved && widget.previous == null) ...[
-              FilledButton(
-                  onPressed: () => Navigator.pop(context, 'remaining'),
-                  child: const Text('Check / scan missing group')),
-              OutlinedButton(
-                  onPressed: () => Navigator.pop(context, 'next'),
-                  child: const Text('Next student')),
+              if (widget.remainingGroups.isNotEmpty)
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, 'remaining'),
+                    child: const Text('Scan next group'))
+              else
+                FilledButton(
+                    onPressed: () => Navigator.pop(context, 'next'),
+                    child: const Text('Next student')),
             ],
-            if (_saved)
+            if (_saved && widget.previous != null)
               FilledButton(
                   onPressed: () => Navigator.pop(context, 'results'),
-                  child: const Text('All results')),
+                  child: const Text('Back to results')),
           ]));
 }
 
@@ -311,6 +327,13 @@ class StudentResultPage extends StatelessWidget {
       required this.repository,
       required this.scan,
       required this.results});
+
+  Map<String, Map<String, String>> _marks(Json result) =>
+      (result['marks'] as Map).map((question, cells) => MapEntry(
+          question.toString(),
+          (cells as Map).map(
+              (part, value) => MapEntry(part.toString(), value.toString()))));
+
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'Result details · ${scan.rollNo}', children: [
@@ -327,9 +350,7 @@ class StudentResultPage extends StatelessWidget {
                       children: [
                         Text(
                             'Q${result['table_type']} · revision ${result['revision']} · total ${result['grand_total']}'),
-                        for (final q in (result['marks'] as Map).entries)
-                          Text(
-                              'Q${q.key}: ${(q.value as Map).entries.map((e) => '${e.key}: ${e.value}').join(', ')}'),
+                        MarksGridTable(marks: _marks(result)),
                         if (!scan.course.archived)
                           TextButton(
                               onPressed: () async {

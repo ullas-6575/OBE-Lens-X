@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/result_service.dart';
+import '../widgets/marks_grid_table.dart';
 
 class ResultsScreen extends StatefulWidget {
   final ResultService resultService;
@@ -123,19 +124,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
-                        ...marks.entries.map((entry) {
-                          final question = entry.key;
-                          final rowMarks = entry.value;
-                          if (rowMarks is Map) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 6),
-                              child: Text(
-                                'Q$question: ${rowMarks.entries.map((e) => '${e.key}:${e.value}').join(', ')}',
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        }),
+                        MarksGridTable(
+                            marks: marks.map((question, cells) => MapEntry(
+                                question.toString(),
+                                (cells as Map).map((part, value) => MapEntry(
+                                    part.toString(), value.toString()))))),
                       ],
                     ],
                   ),

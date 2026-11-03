@@ -7,10 +7,12 @@ import 'workflow/repository.dart';
 void bootstrap({
   AuthService? authService,
   WorkflowRepository? workflowRepository,
+  bool enableTeacherPreview = false,
 }) {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(MarkSheetApp(
     authService: authService,
     workflowRepository: workflowRepository,
+    enableTeacherPreview: enableTeacherPreview,
   ));
 }

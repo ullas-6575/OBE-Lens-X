@@ -11,11 +11,13 @@ class SessionGate extends StatefulWidget {
   final AuthService auth;
   final WorkflowRepository repository;
   final BaseOcrService? ocrService;
+  final bool enableTeacherPreview;
   const SessionGate(
       {super.key,
       required this.auth,
       required this.repository,
-      this.ocrService});
+      this.ocrService,
+      this.enableTeacherPreview = false});
   @override
   State<SessionGate> createState() => _SessionGateState();
 }
@@ -83,6 +85,7 @@ class _SessionGateState extends State<SessionGate> {
                 builder: (_) => Dashboard(
                     repository: widget.repository,
                     isAdmin: widget.auth.isAdmin,
+                    enableTeacherPreview: widget.enableTeacherPreview,
                     ocrService: widget.ocrService,
                     signOut: () async {
                       await widget.auth.signOut();

@@ -55,7 +55,7 @@ class _ExamPageState extends State<ExamPage> {
         if (!widget.course.archived)
           FilledButton.icon(
               icon: const Icon(Icons.document_scanner),
-              label: const Text('Student / script details'),
+              label: const Text('Scan'),
               onPressed: _exam.validate(widget.course) != null
                   ? null
                   : () async {

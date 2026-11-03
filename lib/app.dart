@@ -11,9 +11,15 @@ class MarkSheetApp extends StatelessWidget {
   final BaseOcrService? ocrService;
   final AuthService? authService;
   final WorkflowRepository? workflowRepository;
+  final bool enableTeacherPreview;
 
-  const MarkSheetApp(
-      {super.key, this.ocrService, this.authService, this.workflowRepository});
+  const MarkSheetApp({
+    super.key,
+    this.ocrService,
+    this.authService,
+    this.workflowRepository,
+    this.enableTeacherPreview = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +30,7 @@ class MarkSheetApp extends StatelessWidget {
       home: SessionGate(
           ocrService: ocrService,
           auth: authService ?? const SupabaseAuthService(),
+          enableTeacherPreview: enableTeacherPreview,
           repository: workflowRepository ??
               SupabaseWorkflowRepository(Supabase.instance.client)),
     );
