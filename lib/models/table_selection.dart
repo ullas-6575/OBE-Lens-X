@@ -26,7 +26,9 @@ class TableSelection {
           p.dx < 0 ||
           p.dx > 1 ||
           p.dy < 0 ||
-          p.dy > 1) return false;
+          p.dy > 1) {
+        return false;
+      }
     }
     double area = 0;
     for (var i = 0; i < 4; i++) {

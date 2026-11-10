@@ -1,24 +1,33 @@
-name: obelens
-
 services:
   ocr:
-    # Paddle/Flutter's pinned Linux binaries use x86-64. Docker Desktop can
-    # emulate this on supported ARM hosts; see the README's hardware notes.
+    image: obelens-ocr
     platform: linux/amd64
     build:
       context: .
       target: ocr
-    init: true
     restart: unless-stopped
+    expose:
+      - "8765"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
 
   web:
+    image: obelens-web
     platform: linux/amd64
     build:
       context: .
       target: web
-    ports:
-      - "127.0.0.1:${OBELENS_PORT:-8080}:80"
+    restart: unless-stopped
     depends_on:
       ocr:
         condition: service_healthy
-    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OBELENS_PORT:-8080}:80"

@@ -7,6 +7,13 @@ import 'ocr_http_client.dart' if (dart.library.io) 'ocr_http_client_io.dart';
 import '../models/marks_table_data.dart';
 import '../models/table_selection.dart';
 
+/// One composition point for platform selection and future versioned model assets.
+BaseOcrService createDefaultOcrService() => !kIsWeb && Platform.isAndroid
+    ? const LocalOcrService(
+        modelAssetPath: String.fromEnvironment('OCR_MODEL_ASSET',
+            defaultValue: 'assets/ocr_model/inference.onnx'))
+    : const PythonOcrService();
+
 /// Service interface for Optical Character Recognition on marks tables
 abstract class BaseOcrService {
   Future<MarksTableData> processImage({

@@ -5,29 +5,9 @@ import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/image_processing_screen.dart';
 import 'package:my_app/screens/verification_screen.dart';
 import 'package:my_app/screens/image_source_screen.dart';
-import 'package:my_app/services/auth_service.dart';
+import 'support/workflow_fakes.dart';
 import 'package:my_app/services/ocr_service.dart';
 import 'package:my_app/services/result_service.dart';
-
-class _FakeAuthService implements AuthService {
-  const _FakeAuthService({this.hasSession = true});
-
-  final bool hasSession;
-
-  @override
-  Future<void> signInWithPassword({
-    required String email,
-    required String password,
-  }) async {}
-
-  @override
-  Future<bool> signUp({
-    required String email,
-    required String password,
-    required String fullName,
-  }) async =>
-      hasSession;
-}
 
 class _FakeResultService implements ResultService {
   @override
@@ -46,12 +26,11 @@ class _FakeResultService implements ResultService {
 
 void main() {
   testWidgets(
-      'Screen 1 has ONLY the 2 scan method buttons and table type selector',
+      'Logging in opens the assigned-course dashboard without quick scan',
       (WidgetTester tester) async {
-    const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(
-      ocrService: service,
-      authService: _FakeAuthService(),
+    await tester.pumpWidget(MarkSheetApp(
+      authService: FakeAuthService(),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 
@@ -65,34 +44,18 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Log in'));
     await tester.pumpAndSettle();
 
-    // Verify Screen 1 title and header
-    expect(
-        tester
-            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
-            .ocrService,
-        same(service));
-    expect(find.text('obelens'), findsOneWidget);
-    expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
-
-    // Verify Table Type Selector has Q1-Q4 and Q5-Q8
-    expect(find.text('Questions 1, 2, 3, 4'), findsOneWidget);
-    expect(find.text('Questions 5, 6, 7, 8'), findsOneWidget);
-
-    // Verify ONLY the two scan action buttons exist
-    expect(find.text('Capture Mark Sheet'), findsOneWidget);
-    expect(find.text('Upload Table Image'), findsOneWidget);
-
-    // Verify previous demo button is gone
-    expect(find.text('Try with Sample Marks Table (Demo)'), findsNothing);
+    expect(find.text('Teacher dashboard'), findsOneWidget);
+    expect(find.text('Assigned courses'), findsOneWidget);
+    expect(find.text('Quick scan'), findsNothing);
+    expect(find.byType(ImageSourceScreen), findsNothing);
   });
 
   testWidgets('Sign up opens the home screen without a database', (
     WidgetTester tester,
   ) async {
-    const service = MockOcrService(stepDuration: Duration.zero);
-    await tester.pumpWidget(const MarkSheetApp(
-      ocrService: service,
-      authService: _FakeAuthService(),
+    await tester.pumpWidget(MarkSheetApp(
+      authService: FakeAuthService(),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 
@@ -110,19 +73,16 @@ void main() {
     await tester.tap(createAccountButton);
     await tester.pumpAndSettle();
 
-    expect(
-        tester
-            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
-            .ocrService,
-        same(service));
-    expect(find.text('obelens'), findsOneWidget);
-    expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
+    expect(find.text('Teacher dashboard'), findsOneWidget);
+    expect(find.text('Assigned courses'), findsOneWidget);
+    expect(find.text('Quick scan'), findsNothing);
   });
 
   testWidgets('Sign up asks for email confirmation when no session is created',
       (WidgetTester tester) async {
-    await tester.pumpWidget(const MarkSheetApp(
-      authService: _FakeAuthService(hasSession: false),
+    await tester.pumpWidget(MarkSheetApp(
+      authService: FakeAuthService(signupSession: false),
+      workflowRepository: FakeWorkflowRepository(),
     ));
     await tester.pumpAndSettle();
 

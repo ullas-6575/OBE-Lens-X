@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import '../models/scan_workflow.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/table_selection.dart';
@@ -12,12 +11,14 @@ class TableCropScreen extends StatefulWidget {
   final String imagePath;
   final String tableType;
   final BaseOcrService? ocrService;
+  final ScanWorkflow? workflow;
 
   const TableCropScreen(
       {super.key,
       required this.imagePath,
       this.tableType = '1-4',
-      this.ocrService});
+      this.ocrService,
+      this.workflow});
 
   @override
   State<TableCropScreen> createState() => _TableCropScreenState();
@@ -41,10 +42,7 @@ class _TableCropScreenState extends State<TableCropScreen> {
   @override
   void initState() {
     super.initState();
-    _service = widget.ocrService ??
-        (!kIsWeb && Platform.isAndroid
-            ? const LocalOcrService()
-            : const PythonOcrService());
+    _service = widget.ocrService ?? createDefaultOcrService();
     _loadImage();
   }
 
@@ -141,6 +139,7 @@ class _TableCropScreenState extends State<TableCropScreen> {
             imagePath: widget.imagePath,
             tableType: widget.tableType,
             ocrService: _service,
+            workflow: widget.workflow,
             selection: _selection)));
     if (mounted) setState(() => _continuing = false);
   }

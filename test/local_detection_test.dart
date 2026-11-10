@@ -31,5 +31,4 @@ void main() {
       messenger.setMockMethodCallHandler(channel, null);
     }
   });
-
 }

@@ -1,12 +1,11 @@
 // Browser-only diagnostic entrypoint, excluded from the production web target.
-// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:async';
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:my_app/services/ocr_service.dart';
 import 'package:my_app/widgets/selected_image.dart';
+import 'package:web/web.dart' as web;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,12 +45,12 @@ Future<void> main() async {
     if (count != 28 || result.tableType != '5-8' || result.isVerified) {
       throw StateError('Unexpected browser OCR result');
     }
-    html.document.documentElement!.setAttribute('data-obelens-check', 'PASS');
+    web.document.documentElement!.setAttribute('data-obelens-check', 'PASS');
     runApp(const MaterialApp(
         home: Scaffold(
             body: Center(child: Text('PASS: browser preview and OCR')))));
   } catch (error) {
-    html.document.documentElement!
+    web.document.documentElement!
         .setAttribute('data-obelens-check', 'FAIL: $error');
     runApp(
         MaterialApp(home: Scaffold(body: Center(child: Text('FAIL: $error')))));

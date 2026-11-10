@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import '../models/scan_workflow.dart';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../models/table_selection.dart';
@@ -14,6 +13,7 @@ class ImageProcessingScreen extends StatefulWidget {
   final bool isSampleDemo;
   final String tableType;
   final BaseOcrService? ocrService;
+  final ScanWorkflow? workflow;
   final ResultService? resultService;
   final bool autoNavigate;
   final TableSelection? selection;
@@ -24,6 +24,7 @@ class ImageProcessingScreen extends StatefulWidget {
     this.isSampleDemo = false,
     this.tableType = '1-4',
     this.ocrService,
+    this.workflow,
     this.resultService,
     this.autoNavigate = true,
     this.selection,
@@ -46,10 +47,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
   @override
   void initState() {
     super.initState();
-    _ocrService = widget.ocrService ??
-        (!kIsWeb && Platform.isAndroid
-            ? const LocalOcrService()
-            : const PythonOcrService());
+    _ocrService = widget.ocrService ?? createDefaultOcrService();
     _startOcrProcessing();
   }
 
@@ -109,6 +107,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
         pageBuilder: (context, animation, secondaryAnimation) =>
             VerificationScreen(
           marksTableData: data,
+          workflow: widget.workflow,
           resultService: widget.resultService,
           imagePath: widget.imagePath,
           isSampleDemo: widget.isSampleDemo,

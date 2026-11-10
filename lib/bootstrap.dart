@@ -1,8 +1,18 @@
 import 'package:flutter/widgets.dart';
 
 import 'app.dart';
+import 'services/auth_service.dart';
+import 'workflow/repository.dart';
 
-void bootstrap() {
+void bootstrap({
+  AuthService? authService,
+  WorkflowRepository? workflowRepository,
+  bool enableTeacherPreview = false,
+}) {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MarkSheetApp());
+  runApp(MarkSheetApp(
+    authService: authService,
+    workflowRepository: workflowRepository,
+    enableTeacherPreview: enableTeacherPreview,
+  ));
 }

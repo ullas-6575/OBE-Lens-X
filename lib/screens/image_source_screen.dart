@@ -1,3 +1,4 @@
+import '../models/scan_workflow.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ocr_service.dart';
@@ -5,8 +6,9 @@ import 'table_crop_screen.dart';
 
 class ImageSourceScreen extends StatefulWidget {
   final BaseOcrService? ocrService;
+  final ScanWorkflow? workflow;
 
-  const ImageSourceScreen({super.key, this.ocrService});
+  const ImageSourceScreen({super.key, this.ocrService, this.workflow});
 
   @override
   State<ImageSourceScreen> createState() => _ImageSourceScreenState();
@@ -15,7 +17,8 @@ class ImageSourceScreen extends StatefulWidget {
 class _ImageSourceScreenState extends State<ImageSourceScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  String _selectedTableType = '1-4'; // '1-4' or '5-8'
+  late String _selectedTableType =
+      widget.workflow?.groups.first ?? '1-4'; // '1-4' or '5-8'
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -54,6 +57,7 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
           imagePath: imagePath,
           tableType: _selectedTableType,
           ocrService: widget.ocrService,
+          workflow: widget.workflow,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final curve =
@@ -92,6 +96,7 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.workflow != null) Text(widget.workflow!.description),
               const SizedBox(height: 8),
 
               // Header Card
@@ -166,16 +171,18 @@ class _ImageSourceScreenState extends State<ImageSourceScreen> {
               ),
               const SizedBox(height: 10),
               SegmentedButton<String>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: '1-4',
-                    label: Text('Questions 1, 2, 3, 4'),
-                    icon: Icon(Icons.looks_one_rounded, size: 18),
+                    enabled: widget.workflow?.groups.contains('1-4') ?? true,
+                    label: const Text('Questions 1, 2, 3, 4'),
+                    icon: const Icon(Icons.looks_one_rounded, size: 18),
                   ),
                   ButtonSegment(
                     value: '5-8',
-                    label: Text('Questions 5, 6, 7, 8'),
-                    icon: Icon(Icons.looks_5_rounded, size: 18),
+                    enabled: widget.workflow?.groups.contains('5-8') ?? true,
+                    label: const Text('Questions 5, 6, 7, 8'),
+                    icon: const Icon(Icons.looks_5_rounded, size: 18),
                   ),
                 ],
                 selected: {_selectedTableType},
