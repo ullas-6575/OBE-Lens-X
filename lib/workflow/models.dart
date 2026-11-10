@@ -3,7 +3,7 @@ import '../models/marks_table_data.dart';
 typedef Json = Map<String, dynamic>;
 
 class CourseOutcome {
-  static const codes = ['CO1', 'CO2', 'CO3', 'CO4', 'CO5', 'CO6'];
+  static const codes = ['CO1', 'CO2', 'CO3', 'CO4'];
 
   final String code;
   final String description;
@@ -141,10 +141,10 @@ class ScanContext {
         if (!MarksTableData.isNumericMark(value)) {
           return 'Q${column.key}${cell.key} must be an integer or N/A.';
         }
-        if (mappings.isEmpty) {
-          return 'Q${column.key}${cell.key} has marks but no mapping.';
-        }
-        if (int.parse(value) > mappings.first.maxMark) {
+        // if (mappings.isEmpty) {
+        //   return 'Q${column.key}${cell.key} has marks but no mapping.';
+        // }
+        if (mappings.isNotEmpty && int.parse(value) > mappings.first.maxMark) {
           return 'Q${column.key}${cell.key} exceeds its maximum of ${mappings.first.maxMark}.';
         }
       }

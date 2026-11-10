@@ -64,31 +64,27 @@ create temporary table grid as select jsonb_object_agg(q::text,parts) marks from
  (select q,jsonb_object_agg(p,case when q=1 and p='a' then '5' else 'N/A' end) parts
  from generate_series(1,4) q cross join unnest(array['a','b','c','d','e','f','g']) p group by q) s;
 select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000001','1-4',(select marks from grid),null,null,1);
+ '40000000-0000-4000-8000-000000000001','1-4',(select marks from grid),1);
 select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000001','1-4',(select marks from grid),null,null,1);
+ '40000000-0000-4000-8000-000000000001','1-4',(select marks from grid),1);
 select pg_temp.assert_true((select count(*)=1 and max(grand_total)=5 from public.results),'Retry is idempotent and total is computed');
+select pg_temp.must_fail($q$update public.results
+ set marks=jsonb_set(marks,'{1,a}','"7"')
+ where teacher_id=auth.uid() and submission_id='40000000-0000-4000-8000-000000000001'$q$,'permission denied');
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000002','1-4',(select marks from grid),null,null,1)$q$,'duplicate key');
+ '40000000-0000-4000-8000-000000000002','1-4',(select marks from grid),1)$q$,'duplicate key');
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL002',
- '40000000-0000-4000-8000-000000000003','1-4',jsonb_set((select marks from grid),'{1,a}','"11"'),null,null,1)$q$,'excessive mark');
+ '40000000-0000-4000-8000-000000000003','1-4',jsonb_set((select marks from grid),'{1,a}','"11"'),1)$q$,'excessive mark');
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL002',
- '40000000-0000-4000-8000-000000000003','1-4',jsonb_set((select marks from grid),'{1,b}','"1"'),null,null,1)$q$,'Unmapped');
-select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000004','1-4',jsonb_set((select marks from grid),'{1,a}','"7"'),
- (select id from public.results limit 1),1,1);
-select pg_temp.assert_true((select revision=2 and grand_total=7 from public.results limit 1),'Correction updates revision and total');
-select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000005','1-4',jsonb_set((select marks from grid),'{1,a}','"9"'),
- (select id from public.results limit 1),1,1)$q$,'Result changed');
+ '40000000-0000-4000-8000-000000000003','1-4',jsonb_set((select marks from grid),'{1,b}','"1"'),1)$q$,'Unmapped');
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL002',
- '40000000-0000-4000-8000-000000000006','1-4',(select marks from grid),null,null,0)$q$,'Exam changed');
+ '40000000-0000-4000-8000-000000000006','1-4',(select marks from grid),0)$q$,'Exam changed');
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
 select pg_temp.assert_true((select count(*)=0 from public.results),'Other teacher cannot read marks');
 select pg_temp.assert_true((select count(*)=0 from public.exams),'Other teacher cannot read exam');
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL001',
- '40000000-0000-4000-8000-000000000007','1-4','{}',null,null,1)$q$,'access denied');
+ '40000000-0000-4000-8000-000000000007','1-4','{}',1)$q$,'access denied');
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000004',true);
 select pg_temp.assert_true(not private.is_teacher(),'New accounts await approval');
@@ -102,6 +98,6 @@ update public.courses set archived=true;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
 select set_config('request.jwt.claims','{}',true);
 select pg_temp.must_fail($q$select public.save_verified_marks('30000000-0000-4000-8000-000000000001','ROLL002',
- '40000000-0000-4000-8000-000000000008','1-4',(select marks from grid),null,null,1)$q$,'archived');
+ '40000000-0000-4000-8000-000000000008','1-4',(select marks from grid),1)$q$,'archived');
 select pg_temp.assert_true((select count(*)=1 from public.results),'Archive preserves history');
 rollback;

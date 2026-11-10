@@ -72,7 +72,7 @@ class _ExamPageState extends State<ExamPage> {
                     }),
         ActionTile(
             'All results',
-            'Completeness, student details and saved-mark corrections',
+            'Completeness and student result details',
             Icons.table_rows,
             () => openPage(
                 context,

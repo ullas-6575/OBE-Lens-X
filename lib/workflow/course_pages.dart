@@ -76,14 +76,12 @@ class _CourseEditorState extends State<CourseEditor> {
   late final _code = TextEditingController(text: widget.course?.code);
   late final _title = TextEditingController(text: widget.course?.title);
   late final List<CourseOutcome> _outcomes = [
-    for (var number = 1; number <= 6; number++)
+    for (var number = 1; number <= 4; number++)
       widget.course?.outcomes.firstWhere(
             (outcome) => outcome.code == 'CO$number',
             orElse: () => CourseOutcome('CO$number', 'CO$number', const []),
           ) ??
           CourseOutcome('CO$number', 'CO$number', const []),
-    ...?widget.course?.outcomes
-        .where((outcome) => !RegExp(r'^CO[1-6]$').hasMatch(outcome.code)),
   ];
   late final bool _archived = widget.course?.archived ?? false;
   bool _busy = false;
@@ -138,7 +136,7 @@ class _CourseEditorState extends State<CourseEditor> {
               const DataColumn(label: Text('Course Outcomes')),
               for (var p = 1; p <= 12; p++) DataColumn(label: Text('PO$p')),
             ], rows: [
-              for (var number = 1; number <= 6; number++) _outcomeRow(number),
+              for (var number = 1; number <= 4; number++) _outcomeRow(number),
             ])),
         FilledButton(
             onPressed: _busy ? null : _save,

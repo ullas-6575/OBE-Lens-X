@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../screens/image_source_screen.dart';
-import '../models/scan_workflow.dart';
 import '../services/ocr_service.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -53,15 +51,6 @@ class _DashboardState extends State<Dashboard> {
                 'Try the assigned-course workflow with local demo data',
                 Icons.school_outlined,
                 () => setState(() => _previewingTeacher = true)),
-          const SizedBox(height: 24),
-          const Text('Existing scanner'),
-          ActionTile(
-              'Quick scan',
-              'Create an unassigned OCR result',
-              Icons.document_scanner,
-              () => openPage(
-                  context, ImageSourceScreen(ocrService: widget.ocrService),
-                  name: ScanWorkflow.scannerRoute)),
         ],
       );
 

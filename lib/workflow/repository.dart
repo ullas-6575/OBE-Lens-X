@@ -23,8 +23,7 @@ abstract interface class WorkflowRepository {
   Future<void> saveExam(Exam exam);
   Future<List<Json>> results(String examId);
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks,
-      {String? resultId, int? revision});
+      Map<String, Map<String, String>> marks);
 }
 
 class SupabaseWorkflowRepository implements WorkflowRepository {
@@ -177,8 +176,7 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
 
   @override
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks,
-      {String? resultId, int? revision}) async {
+      Map<String, Map<String, String>> marks) async {
     final error = context.validateMarks(group, marks);
     if (error != null) throw FormatException(error);
     await client.rpc('save_verified_marks', params: {
@@ -187,8 +185,6 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
       'p_submission_id': submissionId,
       'p_table_type': group,
       'p_marks': marks,
-      'p_result_id': resultId,
-      'p_revision': revision,
       'p_exam_revision': context.exam.revision,
     });
   }
@@ -198,10 +194,7 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
 class ExamResultService implements ResultService {
   final WorkflowRepository repository;
   final ScanContext context;
-  final String? resultId;
-  final int? revision;
-  const ExamResultService(this.repository, this.context,
-      {this.resultId, this.revision});
+  const ExamResultService(this.repository, this.context);
   @override
   Future<List<Json>> fetchResults() => repository.results(context.exam.id);
   @override
@@ -212,6 +205,5 @@ class ExamResultService implements ResultService {
           required Map<String, Map<String, String>> marks,
           required double grandTotal,
           String? imagePath}) =>
-      repository.saveMarks(context, submissionId, tableType, marks,
-          resultId: resultId, revision: revision);
+      repository.saveMarks(context, submissionId, tableType, marks);
 }

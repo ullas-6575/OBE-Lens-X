@@ -58,8 +58,6 @@ class MarksTableData {
         isVerified: false);
   }
 
-  final Map<String, String> detectedTotals;
-  final String? detectedGrandTotal;
   final String? imagePath;
   final double confidenceScore;
   final DateTime scannedAt;
@@ -70,8 +68,6 @@ class MarksTableData {
     String? tableType,
     required this.cellMarks,
     this.cellResults = const {},
-    this.detectedTotals = const {},
-    this.detectedGrandTotal,
     this.imagePath,
     this.confidenceScore = 0,
     DateTime? scannedAt,
@@ -130,8 +126,6 @@ class MarksTableData {
     String? tableType,
     Map<String, Map<String, String>>? cellMarks,
     Map<String, Map<String, CellOcrResult>>? cellResults,
-    Map<String, String>? detectedTotals,
-    String? detectedGrandTotal,
     String? imagePath,
     double? confidenceScore,
     DateTime? scannedAt,
@@ -149,8 +143,6 @@ class MarksTableData {
                 (k, v) => MapEntry(k, Map<String, String>.from(v)),
               ),
       cellResults: cellResults ?? this.cellResults,
-      detectedTotals: detectedTotals ?? Map.from(this.detectedTotals),
-      detectedGrandTotal: detectedGrandTotal ?? this.detectedGrandTotal,
       imagePath: imagePath ?? this.imagePath,
       confidenceScore: confidenceScore ?? this.confidenceScore,
       scannedAt: scannedAt ?? this.scannedAt,

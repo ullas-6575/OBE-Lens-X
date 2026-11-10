@@ -89,6 +89,11 @@ Start the OCR server from the repository root:
 source .venv/bin/activate
 cd obelens-ocr
 python -m ocr.server
+
+or
+../.venv/bin/python3 -m ocr.server
+
+flutter run -d linux
 ```
 
 In another terminal, run `flutter run`. Android emulator builds default to

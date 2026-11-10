@@ -13,9 +13,12 @@ configuration, persistent results, corrections, attainment and report export.
    and [`20261103174106_add_fixed_course_outcomes.sql`](../supabase/migrations/20261103174106_add_fixed_course_outcomes.sql)
    and [`20261103174528_remove_attainment_exclusion_options.sql`](../supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql)
    and [`20261104000440_limit_teacher_course_visibility.sql`](../supabase/migrations/20261104000440_limit_teacher_course_visibility.sql)
+   and [`20261110120000_limit_course_outcomes_and_disable_result_edits.sql`](../supabase/migrations/20261110120000_limit_course_outcomes_and_disable_result_edits.sql)
    to the intended Supabase project. The migrations are additive: existing
    results keep `exam_id = null` and remain separate from course results.
-   Do not reapply the original migration to a database where it already ran.
+   The last migration requires existing exam mappings to use CO1–CO4; update
+   mappings that use other outcomes before applying it. Do not reapply the
+   original migration to a database where it already ran.
 2. Assign the first administrator using a trusted Supabase administrator account:
    set that Auth user's **app metadata** to include `"role": "admin"`. Preserve
    other app metadata. Never use user metadata for roles or put a service key in
@@ -85,8 +88,6 @@ flowchart TD
     Save -->|Finished| Results[All exam results]
     Exam --> Results
     Results --> Detail[Student result details]
-    Detail --> Correct[Correct saved marks]
-    Correct --> Summary
     Exam --> Report[Completeness / CO attainment / PO contribution]
     Report --> Preview[Report preview]
     Preview --> Export[PDF / spreadsheet CSV]
@@ -99,17 +100,17 @@ existing crop screen and photograph.
 
 ## Boundaries that keep changes small
 
-| Concern | Location | Change here when… |
-| --- | --- | --- |
-| Authentication/session lifecycle | `services/auth_service.dart`, `screens/session_gate.dart` | Changing auth provider, recovery, or session behavior |
-| Domain values and validation | `workflow/models.dart` | Changing course, offering, exam or mark rules |
-| Data access contract and Supabase adapter | `workflow/repository.dart` | Changing storage, queries or persistence |
-| Scanner integration contract | `models/scan_workflow.dart` | Adding context around scanning without changing OCR |
-| Recognition/detection ports and default factory | `services/ocr_service.dart` | Selecting another recognizer or model asset |
-| Attainment calculation | `workflow/attainment.dart` | Changing eligibility, thresholds, or aggregation mathematics |
-| Export port and file generation | `workflow/report_export.dart` | Changing PDF/CSV generation or delivery |
-| Feature pages | `workflow/*_pages.dart`, `dashboard.dart`, `report_page.dart` | Changing navigation or presentation |
-| Server authorization and integrity | `supabase/migrations/` | Changing persistent schema or database guarantees |
+| Concern                                         | Location                                                      | Change here when…                                            |
+| ----------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------ |
+| Authentication/session lifecycle                | `services/auth_service.dart`, `screens/session_gate.dart`     | Changing auth provider, recovery, or session behavior        |
+| Domain values and validation                    | `workflow/models.dart`                                        | Changing course, offering, exam or mark rules                |
+| Data access contract and Supabase adapter       | `workflow/repository.dart`                                    | Changing storage, queries or persistence                     |
+| Scanner integration contract                    | `models/scan_workflow.dart`                                   | Adding context around scanning without changing OCR          |
+| Recognition/detection ports and default factory | `services/ocr_service.dart`                                   | Selecting another recognizer or model asset                  |
+| Attainment calculation                          | `workflow/attainment.dart`                                    | Changing eligibility, thresholds, or aggregation mathematics |
+| Export port and file generation                 | `workflow/report_export.dart`                                 | Changing PDF/CSV generation or delivery                      |
+| Feature pages                                   | `workflow/*_pages.dart`, `dashboard.dart`, `report_page.dart` | Changing navigation or presentation                          |
+| Server authorization and integrity              | `supabase/migrations/`                                        | Changing persistent schema or database guarantees            |
 
 Pages receive a `WorkflowRepository`, OCR service, and exporter where needed.
 Tests inject fakes. The scanner receives an optional `ScanWorkflow`; without it,
@@ -138,12 +139,12 @@ crops for training, or automatically learn from edits.
   so it remains subject to RLS. The only definer function is the private Auth
   trigger that creates an unapproved profile; clients cannot execute it.
 - A result is unique by exam, roll number and group. Saving uses a submission UUID;
-  an identical retry returns the saved result. A different scan of an already
-  saved group must use **Correct saved marks**, preventing accidental overwrite.
+  an identical retry returns the saved result. Saved results are read-only, and
+  a different scan cannot overwrite an existing group.
 - A full grid is saved atomically. The database checks all 28 cells, integer
   marks, question mappings, configured maxima and archive status, then computes
-  the total. Revision checks reject stale corrections and stale exam settings.
-  Corrections increment a revision; this is not a full historical audit log.
+  the total. The exam revision check rejects saves made against stale exam
+  settings.
 - No per-cell confirmation is compulsory. Blanks remain `N/A`; the teacher can
   submit after reviewing the table as a whole. The new course flow adds one
   submission summary before persistence.

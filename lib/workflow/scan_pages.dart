@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../models/scan_workflow.dart';
 import '../screens/image_source_screen.dart';
-import '../screens/verification_screen.dart';
 import '../services/ocr_service.dart';
 import '../widgets/marks_grid_table.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'ui.dart';
 import 'report_page.dart';
+import 'grading.dart';
 
 String newSubmissionId() {
   final random = Random.secure();
@@ -188,9 +188,7 @@ class _SubmissionPageState extends State<SubmissionPage> {
     });
     try {
       await widget.repository.saveMarks(widget.scan, _submissionId,
-          widget.data.tableType, widget.data.cellMarks,
-          resultId: widget.previous?['id'],
-          revision: widget.previous?['revision']);
+          widget.data.tableType, widget.data.cellMarks);
       if (mounted) setState(() => _saved = true);
     } catch (e) {
       if (mounted) {
@@ -334,63 +332,97 @@ class StudentResultPage extends StatelessWidget {
           (cells as Map).map(
               (part, value) => MapEntry(part.toString(), value.toString()))));
 
+  double _savedTotal(Json result) {
+    final total = result['grand_total'];
+    if (total is num) return total.toDouble();
+    return double.tryParse(total?.toString() ?? '') ??
+        _marks(result).values.fold<double>(
+            0,
+            (sum, cells) =>
+                sum +
+                cells.values.fold<double>(
+                    0,
+                    (subtotal, mark) =>
+                        subtotal + MarksTableData.parseMarkValue(mark)));
+  }
+
   @override
-  Widget build(BuildContext context) =>
-      WorkflowPage(title: 'Result details · ${scan.rollNo}', children: [
-        Text(scan.label),
-        for (final group in scan.exam.requiredGroups)
-          if (!results.any((r) => r['table_type'] == group))
-            Text('Missing group Q$group'),
-        for (final result in results)
-          Card(
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                            'Q${result['table_type']} · revision ${result['revision']} · total ${result['grand_total']}'),
-                        MarksGridTable(marks: _marks(result)),
-                        if (!scan.course.archived)
-                          TextButton(
-                              onPressed: () async {
-                                final route = ModalRoute.of(context);
-                                final marks = (result['marks'] as Map).map(
-                                    (q, c) => MapEntry(
-                                        q.toString(),
-                                        (c as Map).map((p, v) => MapEntry(
-                                            p.toString(), v.toString()))));
-                                await openPage(
-                                    context,
-                                    VerificationScreen(
-                                        marksTableData: MarksTableData(
-                                            tableType: result['table_type'],
-                                            cellMarks: marks),
-                                        workflow: ScanWorkflow(
-                                            rollNo: scan.rollNo,
-                                            description: scan.label,
-                                            groups: [result['table_type']],
-                                            validate: scan.validateMarks,
-                                            review: (data) async {
-                                              final next =
-                                                  await openPage<String>(
-                                                      context,
-                                                      SubmissionPage(
-                                                          repository:
-                                                              repository,
-                                                          scan: scan,
-                                                          data: data,
-                                                          previous: result));
-                                              if (context.mounted &&
-                                                  next != null) {
-                                                Navigator.of(context).popUntil(
-                                                    (r) => r == route);
-                                                Navigator.pop(
-                                                    context); // Results list reloads the saved revision.
-                                              }
-                                            })));
-                              },
-                              child: const Text('Correct saved marks')),
-                      ]))),
-      ]);
+  Widget build(BuildContext context) {
+    final savedGroups = results.map((result) => result['table_type']).toSet();
+    final complete = scan.exam.requiredGroups.every(savedGroups.contains);
+    final earnedTotal =
+        results.fold<double>(0, (total, result) => total + _savedTotal(result));
+    final maximumTotal = scan.exam.questions
+        .where((question) => scan.exam.requiredGroups.contains(question.group))
+        .fold<int>(0, (total, question) => total + question.maxMark);
+    final percent = maximumTotal == 0 ? null : earnedTotal * 100 / maximumTotal;
+    final gpa =
+        complete && percent != null ? bangladeshUgcGradePoint(percent) : null;
+
+    return WorkflowPage(title: 'Result details · ${scan.rollNo}', children: [
+      Text(scan.label),
+      for (final group in scan.exam.requiredGroups)
+        if (!results.any((r) => r['table_type'] == group))
+          Text('Missing group Q$group'),
+      for (final result in results)
+        Card(
+            child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                          'Q${result['table_type']} · revision ${result['revision']}',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      MarksGridTable(marks: _marks(result), showTotals: true),
+                      const SizedBox(height: 10),
+                      Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                              'Group total: ${_savedTotal(result).toStringAsFixed(0)} / ${scan.exam.questions.where((q) => q.group == result['table_type']).fold<int>(0, (sum, q) => sum + q.maxMark)}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700))),
+                    ]))),
+      const SizedBox(height: 8),
+      Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+              color: const Color(0xFFEAF2EC),
+              border: Border.all(color: const Color(0xFFB8CCBD)),
+              borderRadius: BorderRadius.circular(8)),
+          child: Wrap(spacing: 24, runSpacing: 12, children: [
+            _ResultSummaryValue(
+                label: 'Merged total',
+                value: '${earnedTotal.toStringAsFixed(0)} / $maximumTotal'),
+            _ResultSummaryValue(
+                label: 'Overall',
+                value: complete && percent != null
+                    ? '${percent.toStringAsFixed(2)}%'
+                    : 'Pending required groups'),
+            _ResultSummaryValue(
+                label: 'GPA (UGC 4.0)',
+                value: gpa?.toStringAsFixed(2) ?? 'Pending'),
+          ])),
+    ]);
+  }
+}
+
+class _ResultSummaryValue extends StatelessWidget {
+  final String label, value;
+  const _ResultSummaryValue({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: const Color(0xFF52645A), fontWeight: FontWeight.w600)),
+          const SizedBox(height: 3),
+          Text(value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: const Color(0xFF173F35), fontWeight: FontWeight.w700)),
+        ],
+      );
 }

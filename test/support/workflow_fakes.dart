@@ -128,19 +128,17 @@ class FakeWorkflowRepository implements WorkflowRepository {
       resultRows.where((r) => r['exam_id'] == examId).toList();
   @override
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks,
-      {String? resultId, int? revision}) async {
+      Map<String, Map<String, String>> marks) async {
     submissions.add(submissionId);
     if (failSave) throw StateError('Network unavailable');
-    resultRows.removeWhere((r) => r['id'] == resultId);
     resultRows.add({
-      'id': resultId ?? 'result',
+      'id': 'result-${resultRows.length + 1}',
       'exam_id': context.exam.id,
       'roll_no': context.rollNo,
       'table_type': group,
       'marks': marks,
       'grand_total': 5,
-      'revision': (revision ?? 0) + 1
+      'revision': 1
     });
   }
 }

@@ -35,6 +35,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  test('Course outcomes are limited to CO1-CO4', () {
+    expect(CourseOutcome.codes, ['CO1', 'CO2', 'CO3', 'CO4']);
+  });
+
   testWidgets('Admin configures CO links, an offering, assignment and an exam',
       (tester) async {
     final repo = FakeWorkflowRepository();
@@ -92,45 +96,25 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'Review saves into the exam and saved corrections return to results',
+  testWidgets('Saved result details do not offer mark corrections',
       (tester) async {
-    final repo = seededRepository();
+    final marks = MarksTableData.empty(tableType: '1-4');
+    marks.cellMarks['1']!['a'] = '5';
     await tester.pumpWidget(MaterialApp(
-        home: StudentScanPage(
-            repository: repo,
+        home: StudentResultPage(
+            repository: FakeWorkflowRepository(),
             scan: const ScanContext(
-                sampleCourse, sampleOffering, sampleExam, 'ROLL001'))));
+                sampleCourse, sampleOffering, sampleExam, 'ROLL001'),
+            results: [
+          {
+            'table_type': '1-4',
+            'revision': 1,
+            'grand_total': 5,
+            'marks': marks.cellMarks,
+          }
+        ])));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Choose group and scan'));
-    await tester.pumpAndSettle();
-    final source =
-        tester.widget<ImageSourceScreen>(find.byType(ImageSourceScreen));
-    final data = MarksTableData.empty(tableType: '1-4');
-    data.cellMarks['1']!['a'] = '5';
-    final review = source.workflow!.review(data);
-    await tester.pumpAndSettle();
-    await tapVisible(tester, 'Save result');
-    await tapVisible(tester, 'All results');
-    await tester.pumpAndSettle();
-    expect(find.text('All results · Final'), findsOneWidget);
-    await tester.tap(find.text('ROLL001'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Correct saved marks'));
-    await tester.pumpAndSettle();
-    final mark = find
-        .byWidgetPredicate((w) => w is TextField && w.controller?.text == '5');
-    await tester.enterText(mark, '7');
-    await tester.tap(find.text('Review submission'));
-    await tester.pumpAndSettle();
-    await tapVisible(tester, 'Save result');
-    await tapVisible(tester, 'All results');
-    expect(find.text('All results · Final'), findsOneWidget);
-    expect(repo.resultRows.single['revision'], 2);
-    expect(repo.resultRows.single['marks']['1']['a'], '7');
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    await review;
+    expect(find.text('Correct saved marks'), findsNothing);
     expect(tester.takeException(), isNull);
   });
   testWidgets(

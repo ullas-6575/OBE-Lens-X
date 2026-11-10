@@ -25,6 +25,9 @@ Future<void> main() async {
     publishableKey: const String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY',
         defaultValue: 'sb_publishable_CGqB99MEfrYnD8aumMLwNA__20Dq5Lq'),
   );
-
+  // await Supabase.initialize(
+  //   url: 'https://tjlxhmzhoizuwxfqphpd.supabase.co',
+  //   publishableKey: 'sb_publishable_449LYMHbfizw6tpXLlmSUA_NAgRCiWk',
+  // );
   bootstrap();
 }

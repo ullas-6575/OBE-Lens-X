@@ -65,8 +65,6 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
         CourseOutcome('CO2', 'Design and evaluate solutions', ['PO2']),
         CourseOutcome('CO3', 'CO3', []),
         CourseOutcome('CO4', 'CO4', []),
-        CourseOutcome('CO5', 'CO5', []),
-        CourseOutcome('CO6', 'CO6', []),
       ],
     ),
   ];
@@ -197,22 +195,17 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
     ScanContext context,
     String submissionId,
     String group,
-    Map<String, Map<String, String>> marks, {
-    String? resultId,
-    int? revision,
-  }) async {
+    Map<String, Map<String, String>> marks,
+  ) async {
     final error = context.validateMarks(group, marks);
     if (error != null) throw FormatException(error);
 
-    final existingIndex = resultId == null
-        ? _results.indexWhere((result) =>
-            result['exam_id'] == context.exam.id &&
-            result['roll_no'] == context.rollNo &&
-            result['table_type'] == group)
-        : _results.indexWhere((result) => result['id'] == resultId);
-    final previous = existingIndex < 0 ? null : _results[existingIndex];
-    if (revision != null && previous?['revision'] != revision) {
-      throw StateError('The preview result changed. Reload before correcting.');
+    final alreadySaved = _results.any((result) =>
+        result['exam_id'] == context.exam.id &&
+        result['roll_no'] == context.rollNo &&
+        result['table_type'] == group);
+    if (alreadySaved) {
+      throw StateError('This group already has a saved result.');
     }
 
     var total = 0;
@@ -222,7 +215,7 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
       }
     }
     final row = <String, dynamic>{
-      'id': previous?['id'] ?? 'preview-result-${_nextId++}',
+      'id': 'preview-result-${_nextId++}',
       'exam_id': context.exam.id,
       'roll_no': context.rollNo,
       'table_type': group,
@@ -231,12 +224,8 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
           entry.key: Map<String, String>.from(entry.value),
       },
       'grand_total': total,
-      'revision': (previous?['revision'] as int? ?? 0) + 1,
+      'revision': 1,
     };
-    if (existingIndex < 0) {
-      _results.add(row);
-    } else {
-      _results[existingIndex] = row;
-    }
+    _results.add(row);
   }
 }
