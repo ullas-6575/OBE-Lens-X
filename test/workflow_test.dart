@@ -53,42 +53,31 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(0), 'CSE3200');
     await tester.enterText(
         find.byType(TextFormField).at(1), 'Software Engineering');
-    await tester.tap(find.text('Add course outcome'));
-    await tester.pumpAndSettle();
-    final dialogFields = find.descendant(
-        of: find.byType(AlertDialog), matching: find.byType(TextFormField));
-    await tester.enterText(dialogFields.at(1), 'Apply engineering principles');
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-    await tapVisible(tester, 'PO1');
+    await tester.tap(find.byType(Checkbox).first);
     await tapVisible(tester, 'Save course');
-    expect(repo.courseRows.single.outcomes.single.pos, ['PO1']);
+    expect(repo.courseRows.single.outcomes.first.pos, ['PO1']);
     await tester.tap(find.text('CSE3200 · Software Engineering'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add year / term offering'));
     await tester.pumpAndSettle();
-    await tester.enterText(dialogFields.at(0), '2026');
-    await tester.enterText(dialogFields.at(1), 'Term 1');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('2026 · Term 1'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Assign teachers'));
+    await tapVisible(tester, 'Assign teachers');
     await tester.pumpAndSettle();
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
     expect(repo.assigned, ['teacher']);
     await tester.pageBack();
     await tester.pumpAndSettle();
+    await tapVisible(tester, '1 · 1');
     await tester.tap(find.text('Add exam'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, 'Final');
-    await tester.tap(find.text('Required group Q5-8'));
+    await tester.tap(find.text('Questions 5-8 · all parts'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add question part'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
+    final maxMark = find.descendant(
+        of: find.byType(DataTable).first, matching: find.byType(TextField));
+    await tester.enterText(maxMark.first, '10');
     await tapVisible(tester, 'Save exam configuration');
     expect(repo.examRows.single.name, 'Final');
     expect(repo.examRows.single.questions.single.co, 'CO1');
@@ -132,7 +121,7 @@ void main() {
       'CSE3200 · Software Engineering',
       '2026 · Term 1',
       'Final',
-      'Student / script details'
+      'Scan',
     ]) {
       await tester.tap(find.text(text));
       await tester.pumpAndSettle();
@@ -140,23 +129,15 @@ void main() {
     await tester.enterText(find.byType(TextFormField), 'ROLL001');
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(find.text('Student ROLL001'), findsOneWidget);
-    await tester.tap(find.text('Next student'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), 'ROLL002');
-    await tester.tap(find.text('Continue'));
-    await tester.pumpAndSettle();
-    expect(find.text('Student ROLL002'), findsOneWidget);
-    await tester.tap(find.text('Choose group and scan'));
     await tester.pumpAndSettle();
     final source =
         tester.widget<ImageSourceScreen>(find.byType(ImageSourceScreen));
     expect(source.ocrService, same(ocr));
-    expect(source.workflow!.rollNo, 'ROLL002');
+    expect(source.workflow!.rollNo, 'ROLL001');
     expect(source.workflow!.groups, ['1-4']);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('Student ROLL002'), findsOneWidget);
+    expect(find.text('Student ROLL001'), findsOneWidget);
   });
   testWidgets('Pending teacher cannot enter scanner or assigned courses',
       (tester) async {
@@ -169,7 +150,7 @@ void main() {
     expect(find.text('Quick scan'), findsNothing);
     expect(find.text('Assigned courses'), findsNothing);
   });
-  testWidgets('Admin dashboard exposes course, teacher and program journeys',
+  testWidgets('Admin dashboard exposes course management without quick scan',
       (tester) async {
     await tester.pumpWidget(MarkSheetApp(
         authService: FakeAuthService(hasSession: true, isAdmin: true),
@@ -177,8 +158,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Admin dashboard'), findsOneWidget);
     expect(find.text('Manage courses'), findsOneWidget);
-    expect(find.text('Manage teachers'), findsOneWidget);
-    expect(find.text('Program reports'), findsOneWidget);
+    expect(find.text('Quick scan'), findsNothing);
   });
   testWidgets('Session loss disposes protected navigation stack',
       (tester) async {
@@ -226,8 +206,6 @@ void main() {
     expect(find.textContaining('Your reviewed marks are still here'),
         findsOneWidget);
     repo.failSave = false;
-    await tester.scrollUntilVisible(find.text('Retry save'), 150);
-    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Retry save'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Retry save'));
@@ -262,7 +240,6 @@ void main() {
     await tester.pumpAndSettle();
     repo.resultRows.single['revision'] = 2;
     data.cellMarks['1']!['a'] = '8';
-    await tester.scrollUntilVisible(find.text('Export PDF'), 300);
     await tester.ensureVisible(find.text('Export PDF'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Export PDF'));
@@ -271,7 +248,6 @@ void main() {
     expect(find.textContaining('Marks or mappings changed.'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Export PDF'), 300);
     await tester.ensureVisible(find.text('Export PDF'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Export PDF'));

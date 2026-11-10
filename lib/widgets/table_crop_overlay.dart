@@ -122,7 +122,8 @@ class _SelectionPainter extends CustomPainter {
       ..fillType = PathFillType.evenOdd
       ..addRect(Offset.zero & size)
       ..addPath(polygon, Offset.zero);
-    canvas.drawPath(outside, Paint()..color = Colors.black.withOpacity(.58));
+    canvas.drawPath(
+        outside, Paint()..color = Colors.black.withOpacity(.58));
     canvas.drawPath(
         polygon,
         Paint()

@@ -320,7 +320,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     color: theme.colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+                      color: theme.colorScheme.outlineVariant
+                          .withOpacity(0.5),
                     ),
                   ),
                   child: Column(
@@ -582,7 +583,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               .withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: colorScheme.outlineVariant.withOpacity(0.4),
+                            color: colorScheme.outlineVariant
+                                .withOpacity(0.4),
                           ),
                         ),
                         child: Row(
@@ -605,7 +607,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                       vertical: 2.5,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.15),
+                                      color:
+                                          Colors.green.withOpacity(0.15),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Row(
@@ -825,7 +828,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withOpacity(0.5),
+                      color:
+                          colorScheme.primaryContainer.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: colorScheme.primary.withOpacity(0.3),

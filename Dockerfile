@@ -1,6 +1,6 @@
 FROM --platform=linux/amd64 debian:bookworm-slim AS flutter-build
 
-ARG FLUTTER_VERSION=3.47.5
+ARG FLUTTER_VERSION=3.24.0
 ENV PATH="/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:${PATH}"
 WORKDIR /app
 

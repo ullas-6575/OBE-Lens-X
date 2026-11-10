@@ -48,10 +48,8 @@ void main() {
     expect(find.text('CO1'), findsOneWidget);
     expect(find.text('COURSE PO CONTRIBUTION'), findsOneWidget);
     expect(find.text('PO1'), findsOneWidget);
-    await tester.tap(find.text('CO1'));
-    await tester.pumpAndSettle();
-    expect(find.text('CO ATTAINMENT!B3'), findsOneWidget);
-    expect(find.text('CO1'), findsNWidgets(2));
+    expect(find.text('fx'), findsNothing);
+    expect(find.text('Scope'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

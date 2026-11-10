@@ -141,9 +141,9 @@ class ScanContext {
         if (!MarksTableData.isNumericMark(value)) {
           return 'Q${column.key}${cell.key} must be an integer or N/A.';
         }
-        // if (mappings.isEmpty) {
-        //   return 'Q${column.key}${cell.key} has marks but no mapping.';
-        // }
+        if (mappings.isEmpty) {
+          return 'Q${column.key}${cell.key} has marks but no mapping.';
+        }
         if (mappings.isNotEmpty && int.parse(value) > mappings.first.maxMark) {
           return 'Q${column.key}${cell.key} exceeds its maximum of ${mappings.first.maxMark}.';
         }

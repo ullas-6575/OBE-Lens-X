@@ -26,11 +26,9 @@ class _FakeResultService implements ResultService {
 
 void main() {
   testWidgets(
-      'Screen 1 has ONLY the 2 scan method buttons and table type selector',
+      'Logging in opens the assigned-course dashboard without quick scan',
       (WidgetTester tester) async {
-    const service = MockOcrService(stepDuration: Duration.zero);
     await tester.pumpWidget(MarkSheetApp(
-      ocrService: service,
       authService: FakeAuthService(),
       workflowRepository: FakeWorkflowRepository(),
     ));
@@ -47,36 +45,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Teacher dashboard'), findsOneWidget);
-    await tester.tap(find.text('Quick scan'));
-    await tester.pumpAndSettle();
-
-    // Verify Screen 1 title and header
-    expect(
-        tester
-            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
-            .ocrService,
-        same(service));
-    expect(find.text('obelens'), findsOneWidget);
-    expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
-
-    // Verify Table Type Selector has Q1-Q4 and Q5-Q8
-    expect(find.text('Questions 1, 2, 3, 4'), findsOneWidget);
-    expect(find.text('Questions 5, 6, 7, 8'), findsOneWidget);
-
-    // Verify ONLY the two scan action buttons exist
-    expect(find.text('Capture Mark Sheet'), findsOneWidget);
-    expect(find.text('Upload Table Image'), findsOneWidget);
-
-    // Verify previous demo button is gone
-    expect(find.text('Try with Sample Marks Table (Demo)'), findsNothing);
+    expect(find.text('Assigned courses'), findsOneWidget);
+    expect(find.text('Quick scan'), findsNothing);
+    expect(find.byType(ImageSourceScreen), findsNothing);
   });
 
   testWidgets('Sign up opens the home screen without a database', (
     WidgetTester tester,
   ) async {
-    const service = MockOcrService(stepDuration: Duration.zero);
     await tester.pumpWidget(MarkSheetApp(
-      ocrService: service,
       authService: FakeAuthService(),
       workflowRepository: FakeWorkflowRepository(),
     ));
@@ -97,16 +74,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Teacher dashboard'), findsOneWidget);
-    await tester.tap(find.text('Quick scan'));
-    await tester.pumpAndSettle();
-
-    expect(
-        tester
-            .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
-            .ocrService,
-        same(service));
-    expect(find.text('obelens'), findsOneWidget);
-    expect(find.text('Exam MarkSheet Scanner'), findsOneWidget);
+    expect(find.text('Assigned courses'), findsOneWidget);
+    expect(find.text('Quick scan'), findsNothing);
   });
 
   testWidgets('Sign up asks for email confirmation when no session is created',
