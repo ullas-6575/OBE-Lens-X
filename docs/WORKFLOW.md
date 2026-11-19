@@ -19,10 +19,14 @@ configuration, persistent results, corrections, attainment and report export.
    The last migration requires existing exam mappings to use CO1–CO4; update
    mappings that use other outcomes before applying it. Do not reapply the
    original migration to a database where it already ran.
-2. Assign the first administrator using a trusted Supabase administrator account:
-   set that Auth user's **app metadata** to include `"role": "admin"`. Preserve
-   other app metadata. Never use user metadata for roles or put a service key in
-   the app. Sign out and sign back in after changing the role so the JWT refreshes.
+2. Create the first administrator using a trusted Supabase administrator account:
+   create the account in Supabase Auth, then run
+   [`supabase/promote_admin.sql`](../supabase/promote_admin.sql) in the SQL Editor
+   after replacing its email placeholder. It updates Auth app metadata while
+   preserving other app metadata. The user signs in through the regular app login
+   with that account's email and password. Sign out and back in after promotion so
+   the JWT refreshes. Never use user metadata for roles or put a service key in
+   the app.
 3. Add `com.obelens.app://auth-callback/` and your deployed web URL to Supabase
    Auth's redirect allowlist. Set the web site URL correctly. The Android intent
    filter and password-recovery screen are included. Email delivery and redirect

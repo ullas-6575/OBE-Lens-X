@@ -5,7 +5,7 @@ import 'services/local_preview_services.dart';
 
 const _localPreview = bool.fromEnvironment(
   'OBELENS_LOCAL_PREVIEW',
-  defaultValue: true,
+  defaultValue: false,
 );
 
 Future<void> main() async {
@@ -18,16 +18,15 @@ Future<void> main() async {
     );
     return;
   }
-
   await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL',
-        defaultValue: 'https://mleeksafajtfzwmkbyib.supabase.co'),
-    publishableKey: const String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY',
-        defaultValue: 'sb_publishable_CGqB99MEfrYnD8aumMLwNA__20Dq5Lq'),
+    url: const String.fromEnvironment(
+      'SUPABASE_URL',
+      defaultValue: 'https://tnvjmfqjtgttnrifqahs.supabase.co',
+    ),
+    publishableKey: const String.fromEnvironment(
+      'SUPABASE_PUBLISHABLE_KEY',
+      defaultValue: 'sb_publishable_Kx-8_d9TGrcEVoOqZWHmWw_b2QwIE0f',
+    ),
   );
-  // await Supabase.initialize(
-  //   url: 'https://tjlxhmzhoizuwxfqphpd.supabase.co',
-  //   publishableKey: 'sb_publishable_449LYMHbfizw6tpXLlmSUA_NAgRCiWk',
-  // );
   bootstrap();
 }
