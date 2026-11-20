@@ -4,7 +4,8 @@ import base64
 import io
 import json
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from PIL import Image, UnidentifiedImageError
 from .config import RecognitionConfig
@@ -14,6 +15,9 @@ from .cell_extractor import detect_corners, ExtractionError
 from .table_selection import orient_image
 
 MAX_BODY = 16 * 1024 * 1024
+# Recognition is CPU bound. Queue extra scans instead of saturating every core,
+# which would starve /health and the Docker healthcheck.
+MAX_CONCURRENCY = 2
 
 
 def decode_image(raw):
@@ -34,6 +38,8 @@ def decode_image(raw):
 
 
 def make_handler(recognizer, token=''):
+    gate = threading.BoundedSemaphore(MAX_CONCURRENCY)
+
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -66,18 +72,22 @@ def make_handler(recognizer, token=''):
                 raw = base64.b64decode(request['image_base64'], validate=True)
                 with decode_image(raw) as image:
                     rotation = request.get('rotation', 0)
+                    source = None
                     if self.path == '/ocr/detect':
                         source = orient_image(image, rotation)
-                        try:
-                            payload = {'detected': True, 'normalized_corners': detect_corners(source)}
-                        except ExtractionError:
-                            payload = {'detected': False, 'normalized_corners': None}
-                        payload.update(rotation=rotation, width=source.shape[1], height=source.shape[0])
-                    else:
-                        payload = process_table(image, recognizer,
-                            table_type=request.get('table_type', '1-4'),
-                            corners=request.get('corners'), max_mark=request.get('max_mark'),
-                            rotation=rotation, normalized_corners=request.get('normalized_corners'))
+                    # The bounded gate covers only the CPU-heavy section.
+                    with gate:
+                        if self.path == '/ocr/detect':
+                            try:
+                                payload = {'detected': True, 'normalized_corners': detect_corners(source)}
+                            except ExtractionError:
+                                payload = {'detected': False, 'normalized_corners': None}
+                            payload.update(rotation=rotation, width=source.shape[1], height=source.shape[0])
+                        else:
+                            payload = process_table(image, recognizer,
+                                table_type=request.get('table_type', '1-4'),
+                                corners=request.get('corners'), max_mark=request.get('max_mark'),
+                                rotation=rotation, normalized_corners=request.get('normalized_corners'))
                 self.respond(200, payload)
             except (ValueError, KeyError, TypeError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
                 self.respond(422, {'error': str(exc)})
@@ -85,6 +95,13 @@ def make_handler(recognizer, token=''):
                 self.log_error('OCR inference failed')
                 self.respond(500, {'error': 'OCR inference failed; check the server model installation'})
     return Handler
+
+
+class OcrServer(ThreadingHTTPServer):
+    """One thread per request so a slow scan cannot block /health."""
+
+    daemon_threads = True
+    allow_reuse_address = True
 
 
 def main():
@@ -95,8 +112,13 @@ def main():
     parser.add_argument('--model-dir', default=str(Path(__file__).resolve().parents[1] / 'models/pretrained/en_PP-OCRv5_mobile_rec'))
     args = parser.parse_args()
     os.environ.setdefault('PADDLE_PDX_CACHE_HOME', str(Path(__file__).resolve().parents[1] / 'models/.paddlex'))
+    token = os.environ.get('OBELENS_OCR_TOKEN', '')
+    if not token:
+        print('Warning: OBELENS_OCR_TOKEN is not set; /ocr endpoints accept unauthenticated '
+              'requests. Keep the service on loopback or set the token before exposing it.',
+              flush=True)
     recognizer = MarkRecognizer(RecognitionConfig(model_dir=args.model_dir, confidence_threshold=args.confidence_threshold))
-    server = HTTPServer((args.host, args.port), make_handler(recognizer, os.environ.get('OBELENS_OCR_TOKEN', '')))
+    server = OcrServer((args.host, args.port), make_handler(recognizer, token))
     print(f'OCR API listening on http://{args.host}:{server.server_port}', flush=True)
     try:
         server.serve_forever()

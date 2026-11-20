@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/ocr_service.dart';
 import 'models.dart';
+import 'registration_page.dart';
 import 'repository.dart';
 import 'ui.dart';
 import 'course_pages.dart';
@@ -26,10 +27,44 @@ class _DashboardState extends State<Dashboard> {
   late Future<Json> _profile = widget.repository.profile();
   bool _previewingTeacher = false;
 
+  void _reloadProfile() => setState(() {
+        _profile = widget.repository.profile();
+      });
+
   Widget _welcome(Json profile) => Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Text('Welcome, ${profile['full_name']}',
           style: Theme.of(context).textTheme.headlineSmall));
+
+  /// New and rejected accounts see only this notice until an admin decides.
+  Widget _registrationNotice(Json profile) {
+    final theme = Theme.of(context);
+    final rejected =
+        RegistrationStatus.of(profile) == RegistrationStatus.rejected;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(rejected ? Icons.block : Icons.hourglass_top,
+                size: 40, color: theme.colorScheme.primary),
+            const SizedBox(height: 12),
+            Text(
+              rejected
+                  ? 'Your registration was rejected. Contact an administrator.'
+                  : 'Your account is awaiting teacher approval.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.tonal(
+                onPressed: _reloadProfile,
+                child: const Text('Check approval')),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _adminDashboard(Json profile) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -45,6 +80,12 @@ class _DashboardState extends State<Dashboard> {
                       repository: widget.repository,
                       isAdmin: true,
                       ocrService: widget.ocrService))),
+          ActionTile(
+              'Registrations',
+              'Approve or reject new accounts before they can sign in',
+              Icons.how_to_reg,
+              () => openPage(
+                  context, RegistrationsPage(repository: widget.repository))),
           if (widget.enableTeacherPreview)
             ActionTile(
                 'Preview teacher dashboard',
@@ -99,19 +140,12 @@ class _DashboardState extends State<Dashboard> {
           children: [
             LoadView(
                 future: _profile,
-                retry: () => setState(() {
-                      _profile = widget.repository.profile();
-                    }),
+                retry: _reloadProfile,
                 builder: (profile) {
-                  if (!widget.isAdmin && profile['approved'] != true) {
-                    return Column(children: [
-                      const Text('Your account is awaiting teacher approval.'),
-                      TextButton(
-                          onPressed: () => setState(() {
-                                _profile = widget.repository.profile();
-                              }),
-                          child: const Text('Check approval'))
-                    ]);
+                  if (!widget.isAdmin &&
+                      RegistrationStatus.of(profile) !=
+                          RegistrationStatus.approved) {
+                    return _registrationNotice(profile);
                   }
                   if (_previewingTeacher) {
                     return _teacherDashboard(profile, demoPreview: true);

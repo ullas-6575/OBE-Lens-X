@@ -87,26 +87,41 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
   final List<Json> _results = [];
   int _nextId = 1;
 
+  final List<Json> _accounts = [
+    {
+      'id': 'preview-teacher',
+      'full_name': 'Preview Teacher',
+      'email': 'teacher@example.com',
+      'status': 'approved',
+    },
+    {
+      'id': 'preview-pending',
+      'full_name': 'Nadia Rahman',
+      'email': 'nadia@example.com',
+      'status': 'pending',
+    },
+  ];
+
   @override
   Future<Json> profile() async => {
         'id': _teacherId,
         'full_name': 'Local Preview Admin',
         'email': 'preview@example.com',
-        'approved': true,
+        'status': 'approved',
       };
 
   @override
-  Future<List<Json>> teachers() async => [
-        {
-          'id': _teacherId,
-          'full_name': 'Preview Teacher',
-          'email': 'teacher@example.com',
-          'approved': true,
-        },
-      ];
+  Future<List<Json>> accounts() async => _accounts
+      .map((account) => Map<String, dynamic>.from(account))
+      .toList(growable: false);
 
   @override
-  Future<void> approveTeacher(String id, bool approved) async {}
+  Future<void> setRegistrationStatus(
+      String id, RegistrationStatus status) async {
+    for (final account in _accounts) {
+      if (account['id'] == id) account['status'] = status.name;
+    }
+  }
 
   @override
   Future<List<Course>> courses() async => List.unmodifiable(_courses);

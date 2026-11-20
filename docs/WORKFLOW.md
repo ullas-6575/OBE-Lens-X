@@ -14,6 +14,7 @@ configuration, persistent results, corrections, attainment and report export.
    and [`20261103174528_remove_attainment_exclusion_options.sql`](../supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql)
    and [`20261104000440_limit_teacher_course_visibility.sql`](../supabase/migrations/20261104000440_limit_teacher_course_visibility.sql)
    and [`20261110120000_limit_course_outcomes_and_disable_result_edits.sql`](../supabase/migrations/20261110120000_limit_course_outcomes_and_disable_result_edits.sql)
+   and [`20261120120000_registration_status.sql`](../supabase/migrations/20261120120000_registration_status.sql)
    to the intended Supabase project. The migrations are additive: existing
    results keep `exam_id = null` and remain separate from course results.
    The last migration requires existing exam mappings to use CO1–CO4; update
@@ -34,8 +35,8 @@ configuration, persistent results, corrections, attainment and report export.
 4. Run `flutter pub get`, then rebuild the app. The default Supabase project is
    preserved. Another deployment can use `SUPABASE_URL` and
    `SUPABASE_PUBLISHABLE_KEY` through `--dart-define`.
-5. Admin: create courses and COs, select PO relationships, add year/term offerings,
-   and assign approved teachers. Teacher account approval is handled outside the dashboard.
+5. Admin: open **Registrations** to approve or reject new accounts, then create courses
+   and COs, select PO relationships, add year/term offerings, and assign approved teachers.
 6. Teacher: open an assigned offering, create an exam, define the used question
    parts, maxima, CO mappings, required groups, score threshold and CO target, then scan.
 
@@ -66,6 +67,7 @@ flowchart TD
     Approval -->|No| Pending[Await approval / check again]
     Pending --> Approval
     Approval -->|Yes| Teacher[Teacher dashboard]
+    Admin --> Registrations[Registrations / approve or reject]
     Admin --> Courses[Manage courses]
     Courses --> Config[Course / CO / PO configuration]
     Courses --> Offering[Year / term offering]

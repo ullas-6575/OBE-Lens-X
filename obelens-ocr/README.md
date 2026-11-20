@@ -31,8 +31,9 @@ On a fresh checkout, download the official inference model listed in the
 and extract it there, or use the single-cell script once without `--model-dir`
 to populate Paddle's cache and point the server to that model directory.
 
-The service defaults to localhost:8765. It uses one reusable recognizer and
-serializes inference requests. Images and crops are processed in memory; the API
+The service defaults to localhost:8765. It uses one reusable recognizer, serves
+requests on threads and caps concurrent inference at two so `/health` stays
+responsive during a scan. Images and crops are processed in memory; the API
 does not save uploaded sheets. `--confidence-threshold` defaults to 0.8.
 `GET /health` checks the server; the model initializes on first inference.
 
@@ -227,5 +228,5 @@ bundled sheet through detection and manual-selection OCR using the actual Dart
 service, and checks the real model response.
 Tests cover perspective mapping, broken-grid rejection, crop evidence, API error
 handling, byte uploads, response parsing, optional flags, unobstructed submission, edits and blanks.
-Previous CRNN code is preserved under `../archive/crnn`; PyTorch was not removed
-from any environment.
+PaddleOCR 3.7.0 supports Pillow 13, which this service requires for its image
+decoder security fixes.

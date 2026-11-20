@@ -35,6 +35,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  test('Registration status reads the tri-state column and the legacy boolean',
+      () {
+    expect(RegistrationStatus.of({'status': 'pending'}),
+        RegistrationStatus.pending);
+    expect(RegistrationStatus.of({'status': 'approved'}),
+        RegistrationStatus.approved);
+    expect(RegistrationStatus.of({'status': 'rejected'}),
+        RegistrationStatus.rejected);
+    expect(RegistrationStatus.of({'approved': true}),
+        RegistrationStatus.approved);
+    expect(RegistrationStatus.of({'approved': false}),
+        RegistrationStatus.pending);
+  });
+
   test('Course outcomes are limited to CO1-CO4', () {
     expect(CourseOutcome.codes, ['CO1', 'CO2', 'CO3', 'CO4']);
   });
@@ -143,13 +157,31 @@ void main() {
       (tester) async {
     await tester.pumpWidget(MarkSheetApp(
         authService: FakeAuthService(hasSession: true),
-        workflowRepository: FakeWorkflowRepository()..approved = false));
+        workflowRepository: FakeWorkflowRepository()
+          ..status = RegistrationStatus.pending));
     await tester.pumpAndSettle();
     expect(find.text('Your account is awaiting teacher approval.'),
         findsOneWidget);
     expect(find.text('Quick scan'), findsNothing);
     expect(find.text('Assigned courses'), findsNothing);
   });
+  testWidgets('Admin approves a pending registration from the dashboard',
+      (tester) async {
+    final repo = FakeWorkflowRepository()..status = RegistrationStatus.pending;
+    await tester.pumpWidget(MarkSheetApp(
+        authService: FakeAuthService(hasSession: true, isAdmin: true),
+        workflowRepository: repo));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Registrations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pending (1)'), findsOneWidget);
+    await tester.tap(find.text('Approve'));
+    await tester.pumpAndSettle();
+    expect(repo.status, RegistrationStatus.approved);
+    expect(find.text('Pending (0)'), findsOneWidget);
+    expect(find.text('Reviewed'), findsOneWidget);
+  });
+
   testWidgets('Admin dashboard exposes course management without quick scan',
       (tester) async {
     await tester.pumpWidget(MarkSheetApp(

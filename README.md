@@ -128,4 +128,7 @@ The [bundled handwriting evaluation](obelens-ocr/evaluation/README.md) reads 7/8
 clearly labeled numeric marks correctly and leaves 17/17 blank cells unresolved.
 One sheet is a development check, not a deployment accuracy estimate.
 
-Previous custom CRNN implementations are preserved in [archive/crnn](archive/crnn/README.md).
+Saved verified results are immutable: the workflow migration removes the update
+policy and the `update (marks, grand_total)` grant, and `save_verified_marks`
+only inserts. A submission ID makes retries idempotent; changing a saved grid
+requires a new submission.
