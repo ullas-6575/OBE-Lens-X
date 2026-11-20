@@ -1,5 +1,4 @@
 import '../models/scan_workflow.dart';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../services/result_service.dart';
@@ -33,7 +32,7 @@ class VerificationScreen extends StatefulWidget {
 class _VerificationScreenState extends State<VerificationScreen> {
   final Set<String> _edited = {};
   final TextEditingController _rollNoController = TextEditingController();
-  late final String _submissionId = _newSubmissionId();
+  late final String _submissionId = newSubmissionId();
   bool _isSubmitting = false;
   late final ResultService _resultService =
       widget.resultService ?? const SupabaseResultService();
@@ -49,18 +48,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
   late String _activeTableType; // '1-4' or '5-8'
   late List<String> _activeQuestions;
   late Map<String, Map<String, TextEditingController>> _controllers;
-
-  String _newSubmissionId() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex =
-        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
-        '${hex.substring(20)}';
-  }
 
   static const List<String> _allQuestions = [
     '1',
@@ -128,14 +115,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
-  double _calculateColTotal(String question) {
-    double total = 0.0;
-    for (final p in MarksTableData.parts) {
-      final val = _controllers[question]?[p]?.text.trim() ?? '';
-      total += MarksTableData.parseMarkValue(val);
-    }
-    return total;
-  }
+  double _calculateColTotal(String question) => MarksTableData.sumMarks([
+        for (final part in MarksTableData.parts) _controllers[question]?[part]?.text
+      ]);
 
   double _calculateGrandTotal() {
     double grand = 0.0;

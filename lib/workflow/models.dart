@@ -2,6 +2,22 @@ import '../models/marks_table_data.dart';
 
 typedef Json = Map<String, dynamic>;
 
+/// An account can use the app only while it is approved.
+enum RegistrationStatus {
+  pending,
+  approved,
+  rejected;
+
+  /// Reads the tri-state column, falling back to the legacy approved boolean on
+  /// projects that have not applied the registration-status migration yet.
+  static RegistrationStatus of(Json profile) => switch (profile['status']) {
+        'approved' => approved,
+        'rejected' => rejected,
+        'pending' => pending,
+        _ => profile['approved'] == true ? approved : pending,
+      };
+}
+
 class CourseOutcome {
   static const codes = ['CO1', 'CO2', 'CO3', 'CO4'];
 

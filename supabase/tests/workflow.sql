@@ -19,7 +19,7 @@ insert into auth.users(id,email) values
  ('00000000-0000-4000-8000-000000000002','teacher@test.invalid'),
  ('00000000-0000-4000-8000-000000000003','other@test.invalid'),
  ('00000000-0000-4000-8000-000000000004','pending@test.invalid');
-update public.profiles set approved=true where id <> '00000000-0000-4000-8000-000000000004';
+update public.profiles set status='approved' where id <> '00000000-0000-4000-8000-000000000004';
 
 create function pg_temp.assert_true(value boolean, message text) returns void language plpgsql as $$
 begin if value is distinct from true then raise exception 'FAILED: %', message; end if; end $$;
@@ -51,7 +51,7 @@ select set_config('request.jwt.claims','{"user_metadata":{"role":"admin"}}',true
 select pg_temp.assert_true(not private.is_admin(),'User metadata cannot grant admin');
 select pg_temp.assert_true((select count(*)=1 from public.offerings),'Teacher sees only assigned offering');
 select pg_temp.must_fail($q$insert into public.courses(code,title) values('FORGED','No')$q$,'row-level security');
-with changed as (update public.profiles set approved=true where id='00000000-0000-4000-8000-000000000004' returning id)
+with changed as (update public.profiles set status='approved' where id='00000000-0000-4000-8000-000000000004' returning id)
 select pg_temp.assert_true((select count(*)=0 from changed),'Teacher cannot approve another account');
 insert into public.exams(id,offering_id,name,required_groups,questions) values
  ('30000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001','Final','["1-4"]',
@@ -93,6 +93,8 @@ select pg_temp.assert_true((select count(*)=0 from public.courses),'Pending acco
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
 select set_config('request.jwt.claims','{"app_metadata":{"role":"admin"}}',true);
 select pg_temp.assert_true((select count(*)=1 from public.results),'Admin can read course results');
+update public.profiles set status='rejected' where id='00000000-0000-4000-8000-000000000004';
+select pg_temp.assert_true((select status='rejected' from public.profiles where id='00000000-0000-4000-8000-000000000004'),'Admin can reject a registration');
 select pg_temp.must_fail($q$update public.courses set outcomes='[]'$q$,'removed CO');
 update public.courses set archived=true;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);

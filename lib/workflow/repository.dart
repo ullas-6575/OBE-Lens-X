@@ -5,8 +5,10 @@ import 'models.dart';
 /// Screens depend on this port; database queries stay in the Supabase adapter.
 abstract interface class WorkflowRepository {
   Future<Json> profile();
-  Future<List<Json>> teachers();
-  Future<void> approveTeacher(String id, bool approved);
+
+  /// Every other account, for admin assignment and registration review.
+  Future<List<Json>> accounts();
+  Future<void> setRegistrationStatus(String id, RegistrationStatus status);
   Future<List<Course>> courses();
   Future<void> deleteCourse(String id);
   Future<void> saveCourse(
@@ -36,12 +38,36 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
       .eq('id', client.auth.currentUser!.id)
       .single());
   @override
-  Future<List<Json>> teachers() async =>
-      await client.from('profiles').select().order('full_name');
+  Future<List<Json>> accounts() async => await client
+      .from('profiles')
+      .select()
+      .neq('id', client.auth.currentUser!.id)
+      .order('full_name');
   @override
-  Future<void> approveTeacher(String id, bool approved) async {
-    await client.from('profiles').update({'approved': approved}).eq('id', id);
+  Future<void> setRegistrationStatus(
+      String id, RegistrationStatus status) async {
+    try {
+      final rows = await client
+          .from('profiles')
+          .update({'status': status.name})
+          .eq('id', id)
+          .select('id');
+      if (rows.isEmpty) _throwRegistrationUpdateDenied();
+    } on PostgrestException catch (error) {
+      // Projects without the registration-status migration only have the
+      // approved boolean; keeping approval working is better than failing.
+      if (error.code != 'PGRST204' && error.code != '42703') rethrow;
+      final rows = await client
+          .from('profiles')
+          .update({'approved': status == RegistrationStatus.approved})
+          .eq('id', id)
+          .select('id');
+      if (rows.isEmpty) _throwRegistrationUpdateDenied();
+    }
   }
+
+  Never _throwRegistrationUpdateDenied() => throw StateError(
+      'No account was updated. Confirm the latest Supabase migrations are applied and this session belongs to an administrator.');
 
   @override
   Future<List<Course>> courses() async =>

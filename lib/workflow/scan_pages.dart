@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/marks_table_data.dart';
 import '../models/scan_workflow.dart';
@@ -9,16 +8,8 @@ import 'models.dart';
 import 'repository.dart';
 import 'ui.dart';
 import 'report_page.dart';
+import 'results_excel_export.dart';
 import 'grading.dart';
-
-String newSubmissionId() {
-  final random = Random.secure();
-  final bytes = List.generate(16, (_) => random.nextInt(256));
-  bytes[6] = (bytes[6] & 15) | 64;
-  bytes[8] = (bytes[8] & 63) | 128;
-  final h = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
-  return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20)}';
-}
 
 class StudentScanPage extends StatefulWidget {
   final WorkflowRepository repository;
@@ -263,9 +254,22 @@ class ExamResultsPage extends StatefulWidget {
 
 class _ExamResultsPageState extends State<ExamResultsPage> {
   late Future<List<Json>> _results = widget.repository.results(widget.exam.id);
+  bool _exporting = false;
   void _reload() => setState(() {
         _results = widget.repository.results(widget.exam.id);
       });
+
+  Future<void> _export(List<Json> rows) async {
+    if (rows.isEmpty || _exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await shareResultsExcel(context, widget.exam.name, widget.exam, rows);
+    } catch (error) {
+      if (mounted) showError(context, error);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'All results · ${widget.exam.name}', actions: [
@@ -297,6 +301,20 @@ class _ExamResultsPageState extends State<ExamResultsPage> {
               final rolls = students.keys.toList()..sort();
               return Column(children: [
                 if (rows.isEmpty) const Text('No saved results for this exam.'),
+                Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      onPressed: rows.isEmpty || _exporting
+                          ? null
+                          : () => _export(rows),
+                      icon: _exporting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.table_view),
+                      label: const Text('Export to Excel'),
+                    )),
                 for (final roll in rolls)
                   ActionTile(
                       roll,

@@ -1,0 +1,129 @@
+OBE Lens X - local run requirements
+===================================
+
+Everything needed to run the project on your own machine, plus the exact
+commands. Pick EITHER the Docker route (A) or the manual route (B).
+
+
+1. Hardware
+-----------
+- Windows 10/11, macOS (Intel or Apple Silicon), or Linux.
+- CPU: x86-64 with AVX (required by the PaddlePaddle wheels).
+- RAM: 4 GB free for Docker (8 GB recommended) or ~2 GB for the manual route.
+- Disk: ~5 GB for Docker images, or ~1.5 GB for Flutter + Python + model.
+- Network: required for Supabase login and result storage.
+
+
+2. Software versions this project is tested with
+-----------------------------------------------
+- Docker Desktop 4.x with the Compose plugin (Linux: Docker Engine + compose plugin)
+- Flutter 3.24.0 (Dart 3.5.x) - pinned in Dockerfile and CI
+- Python 3.11 (3.11.5 used for the local .venv)
+- Git
+
+
+3. Configuration
+----------------
+Supabase project URL and publishable (anon) key are compile-time defaults in
+lib/main.dart. To point at your own project, either edit those defaults or pass:
+
+  --dart-define=SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+
+Apply every file in supabase/migrations/ (in filename order) to that project
+before signing in. Follow docs/WORKFLOW.md for administrator access.
+
+Optional environment variables:
+  OBELENS_PORT=8080                 host port for the Docker web UI
+  OBELENS_OCR_TOKEN=change-me       enables bearer-token checking on /ocr/*
+  OCR_API_URL=http://host:8765      build-time override for the OCR endpoint
+  OCR_API_TOKEN=change-me           build-time token matching OBELENS_OCR_TOKEN
+  OCR_MODEL_ASSET=...               Android on-device model asset path
+  OBELENS_LOCAL_PREVIEW=true        build-time local demo data (no Supabase)
+NOTE: OBELENS_OCR_TOKEN is optional and off by default, because the Flutter
+client sends no token unless OCR_API_TOKEN is also set. Leave both unset for
+local use, and set both together if you expose the OCR API beyond loopback.
+
+
+A. Run with Docker (recommended)
+--------------------------------
+  docker compose up --build -d
+  docker compose ps
+  docker compose logs -f
+  open http://localhost:8080          # http://localhost:PORT if OBELENS_PORT set
+  docker compose down
+
+The first build downloads Flutter, Python wheels and the official
+en_PP-OCRv5_mobile_rec model, and takes several minutes and a few GB.
+Health: http://localhost:8080/health (through nginx) or the ocr container's
+http://127.0.0.1:8765/health for the API-only image.
+
+OCR API image only:
+  docker build --platform linux/amd64 --target ocr -t obelens-ocr .
+  docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 obelens-ocr
+
+Optional end-to-end smoke test (needs host Python 3, no extra packages):
+  python docker/smoke_test.py
+
+
+B. Run with local tools
+-----------------------
+1) OCR service
+   python -m venv .venv
+   Windows:  .venv\Scripts\activate
+   macOS/Linux:  source .venv/bin/activate
+   pip install -r obelens-ocr/requirements.txt
+
+   # Download the official inference model once (writes 3 files, ~20 MB):
+   python docker/download_model.py obelens-ocr/models/pretrained/en_PP-OCRv5_mobile_rec
+
+   cd obelens-ocr
+   python -m ocr.server            # http://127.0.0.1:8765, GET /health
+
+   For a physical phone on the same network:
+   python -m ocr.server --host 0.0.0.0
+
+2) Flutter app (second terminal, repository root)
+   flutter pub get
+   flutter run -d chrome                 # web
+   flutter run -d linux                  # or -d windows / -d macos
+   flutter run                           # attached device or emulator
+
+   Default OCR endpoints: Android emulator http://10.0.2.2:8765,
+   desktop http://127.0.0.1:8765, web same-origin (so use Docker for web,
+   or start the API with --host 0.0.0.0 and pass
+   --dart-define=OCR_API_URL=http://127.0.0.1:8765).
+
+   Android on-device OCR uses the bundled asset:
+   assets/ocr_model/inference.onnx (no Python service needed).
+
+
+4. Checks before you file a bug
+-------------------------------
+  flutter analyze
+  flutter test
+  bash scripts/test_workflow_db.sh      # disposable PostgreSQL, needs postgres installed locally
+  cd obelens-ocr && python -m compileall ocr
+  curl http://127.0.0.1:8765/health
+
+
+5. Python dependency notes
+--------------------------
+- PaddleOCR 3.7.0 / PaddlePaddle 3.3.1 / OpenCV 4.10.0.84 are pinned and verified.
+- Pillow must stay on the 13.x line: 13.0.0 fixes image-decoder memory-safety
+  bugs (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501) present in every
+  older release.
+- NumPy is capped at <2.4 because PaddleOCR 3.7.0 declares numpy<2.4.
+- Python packages are installed from obelens-ocr/requirements.txt only.
+
+
+6. Troubleshooting
+------------------
+- "OCR inference failed": the model directory is missing or incomplete; rerun
+  the download step or rebuild the Docker image.
+- Browser cannot reach the API: start the OCR service, or use Compose where
+  nginx proxies /ocr/ to it on the same origin.
+- Login fails: confirm the Supabase migrations were applied and that email
+  confirmation settings match your Auth configuration.
+- Android release build cannot use plain HTTP: only the debug manifest allows
+  cleartext traffic; use HTTPS for release builds.

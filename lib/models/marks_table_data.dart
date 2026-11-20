@@ -97,16 +97,15 @@ class MarksTableData {
     return isNumericMark(text) ? int.parse(text!.trim()).toDouble() : 0;
   }
 
+  /// Sums displayed mark values. 'N/A', blanks and non-numbers count as zero.
+  static double sumMarks(Iterable<String?> values) =>
+      values.fold(0.0, (sum, value) => sum + parseMarkValue(value));
+
   /// Calculates numeric sum of marks for a given question column. 'N/A' is counted as 0.
   double calculateColumnTotal(String question) {
     final colMarks = cellMarks[question];
     if (colMarks == null) return 0.0;
-    double sum = 0.0;
-    for (final part in parts) {
-      final val = colMarks[part];
-      sum += parseMarkValue(val);
-    }
-    return sum;
+    return sumMarks([for (final part in parts) colMarks[part]]);
   }
 
   /// Calculates the grand total across all questions. 'N/A' is counted as 0.

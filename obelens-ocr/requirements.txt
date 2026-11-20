@@ -1,5 +1,8 @@
 paddleocr==3.7.0
 paddlepaddle==3.3.1
-Pillow>=10,<13
-numpy>=1.26,<3
+# 13.x contains fixes for the image-decoder memory-safety advisories that affect
+# every older release (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501).
+Pillow>=13,<14
+# PaddleOCR 3.7.0 declares numpy<2.4; keep the resolver inside that range.
+numpy>=1.26,<2.4
 opencv-contrib-python==4.10.0.84

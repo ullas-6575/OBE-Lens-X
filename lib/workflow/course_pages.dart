@@ -431,7 +431,7 @@ class _AssignmentPageState extends State<AssignmentPage> {
   late Future<(List<Json>, List<String>)> _data = _load();
   bool _busy = false;
   Future<(List<Json>, List<String>)> _load() async => (
-        await widget.repository.teachers(),
+        await widget.repository.accounts(),
         await widget.repository.assignments(widget.offering.id)
       );
   @override
@@ -448,10 +448,11 @@ class _AssignmentPageState extends State<AssignmentPage> {
                         CheckboxListTile(
                             title: Text(teacher['full_name']),
                             subtitle: Text(
-                                '${teacher['email']}${teacher['approved'] == true ? '' : ' · awaiting approval'}'),
+                                '${teacher['email']}${RegistrationStatus.of(teacher) == RegistrationStatus.approved ? '' : ' · awaiting approval'}'),
                             value: data.$2.contains(teacher['id']),
                             onChanged: _busy ||
-                                    (teacher['approved'] != true &&
+                                    (RegistrationStatus.of(teacher) !=
+                                            RegistrationStatus.approved &&
                                         !data.$2.contains(teacher['id']))
                                 ? null
                                 : (v) async {

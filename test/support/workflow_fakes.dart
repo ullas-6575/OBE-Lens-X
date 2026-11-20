@@ -44,7 +44,7 @@ class FakeAuthService implements AuthService {
 }
 
 class FakeWorkflowRepository implements WorkflowRepository {
-  bool approved = true;
+  RegistrationStatus status = RegistrationStatus.approved;
   bool failSave = false;
   final List<String> submissions = [];
   final List<Course> courseRows = [];
@@ -53,19 +53,20 @@ class FakeWorkflowRepository implements WorkflowRepository {
   final List<Json> resultRows = [];
   @override
   Future<Json> profile() async =>
-      {'full_name': 'Teacher', 'approved': approved};
+      {'full_name': 'Teacher', 'status': status.name};
   @override
-  Future<List<Json>> teachers() async => [
+  Future<List<Json>> accounts() async => [
         {
           'id': 'teacher',
           'full_name': 'Teacher',
           'email': 'teacher@example.com',
-          'approved': approved
+          'status': status.name
         }
       ];
   @override
-  Future<void> approveTeacher(String id, bool value) async {
-    approved = value;
+  Future<void> setRegistrationStatus(
+      String id, RegistrationStatus value) async {
+    status = value;
   }
 
   @override
