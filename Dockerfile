@@ -24,12 +24,12 @@ RUN flutter pub get
 COPY . .
 RUN flutter build web --release
 
-FROM --platform=linux/amd64 python:3.11-slim-bookworm AS model
+FROM --platform=linux/amd64 python:3.15-slim-bookworm AS model
 WORKDIR /build
 COPY docker/download_model.py ./download_model.py
 RUN python download_model.py /model
 
-FROM --platform=linux/amd64 python:3.11-slim-bookworm AS ocr
+FROM --platform=linux/amd64 python:3.15-slim-bookworm AS ocr
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PADDLE_PDX_CACHE_HOME=/app/models/.paddlex
