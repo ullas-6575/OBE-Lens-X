@@ -47,17 +47,27 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
   Future<void> setRegistrationStatus(
       String id, RegistrationStatus status) async {
     try {
-      await client.from('profiles').update({'status': status.name}).eq('id', id);
+      final rows = await client
+          .from('profiles')
+          .update({'status': status.name})
+          .eq('id', id)
+          .select('id');
+      if (rows.isEmpty) _throwRegistrationUpdateDenied();
     } on PostgrestException catch (error) {
       // Projects without the registration-status migration only have the
       // approved boolean; keeping approval working is better than failing.
       if (error.code != 'PGRST204' && error.code != '42703') rethrow;
-      await client
+      final rows = await client
           .from('profiles')
           .update({'approved': status == RegistrationStatus.approved})
-          .eq('id', id);
+          .eq('id', id)
+          .select('id');
+      if (rows.isEmpty) _throwRegistrationUpdateDenied();
     }
   }
+
+  Never _throwRegistrationUpdateDenied() => throw StateError(
+      'No account was updated. Confirm the latest Supabase migrations are applied and this session belongs to an administrator.');
 
   @override
   Future<List<Course>> courses() async =>

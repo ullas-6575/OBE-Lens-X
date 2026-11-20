@@ -15,6 +15,7 @@ configuration, persistent results, corrections, attainment and report export.
    and [`20261104000440_limit_teacher_course_visibility.sql`](../supabase/migrations/20261104000440_limit_teacher_course_visibility.sql)
    and [`20261110120000_limit_course_outcomes_and_disable_result_edits.sql`](../supabase/migrations/20261110120000_limit_course_outcomes_and_disable_result_edits.sql)
    and [`20261120120000_registration_status.sql`](../supabase/migrations/20261120120000_registration_status.sql)
+   and [`20261120130000_repair_registration_review_access.sql`](../supabase/migrations/20261120130000_repair_registration_review_access.sql)
    to the intended Supabase project. The migrations are additive: existing
    results keep `exam_id = null` and remain separate from course results.
    The last migration requires existing exam mappings to use CO1–CO4; update
