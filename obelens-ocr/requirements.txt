@@ -4,5 +4,5 @@ paddlepaddle==3.3.1
 # every older release (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501).
 Pillow>=13,<14
 # PaddleOCR 3.7.0 declares numpy<2.4; keep the resolver inside that range.
-numpy>=1.26,<2.4
+numpy>=2.5.5,<2.6
 opencv-contrib-python==4.10.0.84
