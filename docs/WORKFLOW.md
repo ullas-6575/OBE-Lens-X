@@ -209,3 +209,21 @@ socket, runs the migrations and tests, and removes that cluster on exit. It uses
 the local Auth stub in `supabase/tests/auth_stub.sql`, never the hosted project.
 Hosted Supabase advisors were not run; the tests include checks for RLS on public
 tables, anonymous result access and exposed definer functions.
+
+## Desktop password-reset links
+
+After placing the complete Linux bundle or Windows release folder in its final
+location, register its executable for the current OS user:
+
+```sh
+python3 scripts/register_desktop_links.py /absolute/path/to/obelens
+```
+
+On Windows, use `py scripts/register_desktop_links.py "C:\path\to\obelens.exe"`.
+Python is needed only to run this setup script. Rerun it if the app is moved.
+The script registers `com.obelens.app` using a Linux desktop entry or the Windows
+current-user registry; administrator access is not required.
+Allow `com.obelens.app://auth-callback/` in Supabase Auth redirect URLs.
+Test a real password-reset email both with the app closed and already running.
+Linux exports now show a Save dialog for PDF, CSV, and Excel files.
+

@@ -116,7 +116,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   double _calculateColTotal(String question) => MarksTableData.sumMarks([
-        for (final part in MarksTableData.parts) _controllers[question]?[part]?.text
+        for (final part in MarksTableData.parts)
+          _controllers[question]?[part]?.text
       ]);
 
   double _calculateGrandTotal() {
@@ -175,8 +176,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       updatedMarks[q] = {};
       for (final p in MarksTableData.parts) {
         final raw = _controllers[q]?[p]?.text.trim() ?? '';
-        if (widget.workflow != null &&
-            raw.isNotEmpty &&
+        if (raw.isNotEmpty &&
             raw.toUpperCase() != 'N/A' &&
             !MarksTableData.isNumericMark(raw)) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -218,7 +218,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
         tableType: _activeTableType,
         marks: updatedMarks,
         grandTotal: _calculateGrandTotal(),
-        imagePath: widget.imagePath,
       );
     } catch (error) {
       if (!mounted) return;
@@ -302,8 +301,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     color: theme.colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: theme.colorScheme.outlineVariant
-                          .withOpacity(0.5),
+                      color: theme.colorScheme.outlineVariant.withOpacity(0.5),
                     ),
                   ),
                   child: Column(
@@ -565,8 +563,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                               .withOpacity(0.4),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: colorScheme.outlineVariant
-                                .withOpacity(0.4),
+                            color: colorScheme.outlineVariant.withOpacity(0.4),
                           ),
                         ),
                         child: Row(
@@ -589,8 +586,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                       vertical: 2.5,
                                     ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          Colors.green.withOpacity(0.15),
+                                      color: Colors.green.withOpacity(0.15),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Row(
@@ -810,8 +806,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color:
-                          colorScheme.primaryContainer.withOpacity(0.5),
+                      color: colorScheme.primaryContainer.withOpacity(0.5),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: colorScheme.primary.withOpacity(0.3),
@@ -1103,18 +1098,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
           onFocusChange: (hasFocus) {
             if (!hasFocus) {
               final val = controller?.text.trim() ?? '';
-              if (val.isEmpty ||
-                  (val.toUpperCase() != 'N/A' &&
-                      double.tryParse(val) == null)) {
-                // If left empty or invalid, standardize to 'N/A'
+              if (val.isEmpty) {
+                // Empty cells are N/A; invalid nonempty input stays visible so
+                // submit validation can explain what must be fixed.
                 controller?.text = 'N/A';
                 setState(() {});
               }
             }
           },
           child: TextField(
+            key: ValueKey('manual-$question-$part'),
             controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: isNA ? 11 : 13,

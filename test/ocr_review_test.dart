@@ -40,7 +40,6 @@ class _FakeResultService implements ResultService {
     required String tableType,
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
-    String? imagePath,
   }) async {
     submissions.add(submissionId);
     await pending?.future;
@@ -48,6 +47,22 @@ class _FakeResultService implements ResultService {
 }
 
 void main() {
+  testWidgets('Manual entry rejects decimals instead of silently saving N/A',
+      (tester) async {
+    final service = _FakeResultService();
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(
+            marksTableData: MarksTableData.empty(), resultService: service)));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'ROLL001');
+    await tester.enterText(find.byKey(const ValueKey('manual-1-a')), '1.5');
+    await tester.tap(find.text('Verify & Submit'));
+    await tester.pump();
+
+    expect(find.textContaining('must be an integer'), findsOneWidget);
+    expect(service.submissions, isEmpty);
+  });
+
   testWidgets('Failed saves retain the grid and retry with the same submission',
       (tester) async {
     final service = _FakeResultService()..pending = Completer<void>();

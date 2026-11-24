@@ -2,14 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
+import 'export_file.dart';
 
 import 'models.dart';
 
 /// Builds an Excel-readable SpreadsheetML workbook with one row per roll number.
 String resultsExcelXml(Exam exam, List<Json> results) {
-  final mappings = [...exam.questions]
-    ..sort((a, b) {
+  final mappings = [...exam.questions]..sort((a, b) {
       final questionOrder =
           int.parse(a.question).compareTo(int.parse(b.question));
       return questionOrder != 0 ? questionOrder : a.part.compareTo(b.part);
@@ -56,20 +55,13 @@ String _xmlEscape(String value) => value
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-Future<void> shareResultsExcel(
-    BuildContext context,
-    String examName,
-    Exam exam,
+Future<void> shareResultsExcel(BuildContext context, String examName, Exam exam,
     List<Json> results) async {
-  final box = context.findRenderObject() as RenderBox?;
-  final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
   final bytes = Uint8List.fromList(utf8.encode(resultsExcelXml(exam, results)));
-  await Share.shareXFiles(
-    [XFile.fromData(bytes, mimeType: 'application/vnd.ms-excel')],
-    fileNameOverrides: ['${_safeFileName(examName)}-results.xls'],
-    subject: '$examName results',
-    sharePositionOrigin: origin,
-  );
+  await exportFile(context, bytes,
+      name: '${_safeFileName(examName)}-results.xls',
+      mimeType: 'application/vnd.ms-excel',
+      title: '$examName results');
 }
 
 String _safeFileName(String value) => value

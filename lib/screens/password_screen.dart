@@ -25,9 +25,9 @@ class _PasswordScreenState extends State<PasswordScreen> {
 
   Future<void> _submit() async {
     if (widget.recovery) {
-      if (_value.text.length < 6 || _value.text != _confirm.text) {
+      if (_value.text.length < 8 || _value.text != _confirm.text) {
         showError(
-            context, 'Use at least six characters and matching passwords.');
+            context, 'Use at least eight characters and matching passwords.');
         return;
       }
     } else if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')

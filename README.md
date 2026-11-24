@@ -108,8 +108,8 @@ must confirm their address before signing in.
 
 The verification workflow saves one verified marks grid per row in
 `public.results`. Each row stores the roll number, selected table type, marks
-grid as JSON, grand total, optional image path, authenticated teacher ID, and
-creation time. A single database operation stores the grid atomically, and a
+grid as JSON, grand total, authenticated teacher ID, and creation time. A
+single database operation stores the grid atomically, and a
 per-verification submission ID makes retries idempotent. Row Level Security
 allows approved teachers to save results under their own account. Unassigned
 results remain owner-only; exam results are visible to assigned teachers and

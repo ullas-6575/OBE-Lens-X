@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/models/marks_table_data.dart';
+import 'package:my_app/services/result_service.dart';
 import 'package:my_app/workflow/grading.dart';
 import 'package:my_app/workflow/models.dart';
 import 'package:my_app/workflow/scan_pages.dart';
@@ -102,5 +103,26 @@ void main() {
     expect(bangladeshUgcGradePoint(75), 3.75);
     expect(bangladeshUgcGradePoint(40), 2.0);
     expect(bangladeshUgcGradePoint(39.99), 0);
+  });
+
+  test('Idempotent saves accept only the exact payload', () {
+    final marks = marksFor('1', '8');
+    final saved = <String, dynamic>{
+      'roll_no': 'ROLL001',
+      'table_type': '1-4',
+      'grand_total': 8,
+      'marks': marks,
+    };
+    expect(
+        savedResultMatches(saved,
+            rollNo: 'ROLL001', tableType: '1-4', marks: marks, grandTotal: 8),
+        isTrue);
+    expect(
+        savedResultMatches(saved,
+            rollNo: 'ROLL001',
+            tableType: '1-4',
+            marks: marksFor('1', '9'),
+            grandTotal: 9),
+        isFalse);
   });
 }

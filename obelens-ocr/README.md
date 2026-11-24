@@ -23,7 +23,7 @@ cd obelens-ocr
 python -m ocr.server
 ```
 
-The verified versions are PaddleOCR 3.7.0, CPU PaddlePaddle 3.3.1 and OpenCV 4.10.
+The verified versions are PaddleOCR 3.7.0, CPU PaddlePaddle 3.3.1 and OpenCV 4.12.
 The downloaded English model is at `models/pretrained/en_PP-OCRv5_mobile_rec`,
 ignored by Git. Supply a different local model path with `--model-dir` if needed.
 On a fresh checkout, download the official inference model listed in the
