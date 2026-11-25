@@ -11,45 +11,46 @@ class SaveSelector extends FileSelectorPlatform {
   String? name;
   @override
   Future<FileSaveLocation?> getSaveLocation(
-      {List<XTypeGroup> acceptedTypeGroups = const [],
-      String? initialDirectory,
-      String? suggestedName,
-      String? confirmButtonText}) async {
-    name = suggestedName;
+      {List<XTypeGroup>? acceptedTypeGroups,
+      SaveDialogOptions options = const SaveDialogOptions()}) async {
+    name = options.suggestedName;
     return path == null ? null : FileSaveLocation(path!);
   }
 }
 
 void main() {
   testWidgets('Linux saves bytes and cancel writes nothing', (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    final previous = FileSelectorPlatform.instance;
-    final selector = SaveSelector();
-    FileSelectorPlatform.instance = selector;
-    final directory = await Directory.systemTemp.createTemp('export-test-');
-    addTearDown(() async {
+    await tester.runAsync(() async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      final previous = FileSelectorPlatform.instance;
+      final selector = SaveSelector();
+      FileSelectorPlatform.instance = selector;
+      final directory = await Directory.systemTemp.createTemp('export-test-');
+      addTearDown(() async {
+        debugDefaultTargetPlatformOverride = null;
+        FileSelectorPlatform.instance = previous;
+        await directory.delete(recursive: true);
+      });
+      late BuildContext context;
+      await tester.pumpWidget(MaterialApp(home: Builder(builder: (value) {
+        context = value;
+        return const SizedBox();
+      })));
+      for (final extension in ['pdf', 'csv', 'xls']) {
+        selector.path = '${directory.path}/report.$extension';
+        await exportFile(context, Uint8List.fromList([1, 2, 3]),
+            name: 'report.$extension',
+            mimeType: 'application/octet-stream',
+            title: 'Report');
+        expect(await File(selector.path!).readAsBytes(), [1, 2, 3]);
+        expect(selector.name, 'report.$extension');
+      }
+      selector.path = null;
+      await exportFile(context, Uint8List(0),
+          name: 'cancel.csv', mimeType: 'text/csv', title: 'Report');
+      expect(directory.listSync().length, 3);
       debugDefaultTargetPlatformOverride = null;
-      FileSelectorPlatform.instance = previous;
-      await directory.delete(recursive: true);
     });
-    late BuildContext context;
-    await tester.pumpWidget(MaterialApp(home: Builder(builder: (value) {
-      context = value;
-      return const SizedBox();
-    })));
-    for (final extension in ['pdf', 'csv', 'xls']) {
-      selector.path = '${directory.path}/report.$extension';
-      await exportFile(context, Uint8List.fromList([1, 2, 3]),
-          name: 'report.$extension',
-          mimeType: 'application/octet-stream',
-          title: 'Report');
-      expect(await File(selector.path!).readAsBytes(), [1, 2, 3]);
-      expect(selector.name, 'report.$extension');
-    }
-    selector.path = null;
-    await exportFile(context, Uint8List(0),
-        name: 'cancel.csv', mimeType: 'text/csv', title: 'Report');
-    expect(directory.listSync().length, 3);
   });
 
   testWidgets('Android export sends files to the sharing plugin',
@@ -57,6 +58,15 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
     const channel = MethodChannel('dev.fluttercommunity.plus/share');
+    const paths = MethodChannel('plugins.flutter.io/path_provider');
+    final temp = Directory.systemTemp.createTempSync('share-test-');
+    tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(paths, (_) async => temp.path);
+    addTearDown(() async {
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(paths, null);
+      await temp.delete(recursive: true);
+    });
     MethodCall? shared;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel,
         (call) async {
@@ -76,5 +86,6 @@ void main() {
     });
     expect(shared, isNotNull);
     expect(shared!.arguments['mimeTypes'], ['text/csv']);
+    debugDefaultTargetPlatformOverride = null;
   });
 }
