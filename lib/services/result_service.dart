@@ -9,8 +9,35 @@ abstract interface class ResultService {
     required String tableType,
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
-    String? imagePath,
   });
+}
+
+bool savedResultMatches(
+  Map<String, dynamic> saved, {
+  required String rollNo,
+  required String tableType,
+  required Map<String, Map<String, String>> marks,
+  required double grandTotal,
+}) {
+  final savedMarks = saved['marks'];
+  if (saved['roll_no'] != rollNo ||
+      saved['table_type'] != tableType ||
+      saved['grand_total'] is! num ||
+      (saved['grand_total'] as num).toDouble() != grandTotal ||
+      savedMarks is! Map ||
+      savedMarks.length != marks.length) {
+    return false;
+  }
+  for (final question in marks.entries) {
+    final savedParts = savedMarks[question.key];
+    if (savedParts is! Map || savedParts.length != question.value.length) {
+      return false;
+    }
+    for (final part in question.value.entries) {
+      if (savedParts[part.key] != part.value) return false;
+    }
+  }
+  return true;
 }
 
 class SupabaseResultService implements ResultService {
@@ -41,7 +68,6 @@ class SupabaseResultService implements ResultService {
     required String tableType,
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
-    String? imagePath,
   }) async {
     final trimmedRollNo = rollNo.trim();
     if (trimmedRollNo.isEmpty) {
@@ -59,7 +85,25 @@ class SupabaseResultService implements ResultService {
       'table_type': tableType,
       'marks': marks,
       'grand_total': grandTotal,
-      'image_path': imagePath,
     }, onConflict: 'teacher_id,submission_id', ignoreDuplicates: true);
+
+    final saved = await client
+        .from('results')
+        .select('roll_no, table_type, marks, grand_total')
+        .eq('teacher_id', client.auth.currentUser!.id)
+        .eq('submission_id', submissionId)
+        .isFilter('exam_id', null)
+        .maybeSingle();
+    if (saved == null ||
+        !savedResultMatches(
+          saved,
+          rollNo: trimmedRollNo,
+          tableType: tableType,
+          marks: marks,
+          grandTotal: grandTotal,
+        )) {
+      throw StateError(
+          'This submission ID was already saved with different values. Start a new scan.');
+    }
   }
 }

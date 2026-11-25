@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
+import 'export_file.dart';
 
 abstract interface class ReportExporter {
   Future<void> export(
@@ -44,19 +44,16 @@ class ShareReportExporter implements ReportExporter {
   Future<void> export(
       BuildContext context, String title, List<List<String>> rows,
       {required bool pdf}) async {
-    final box = context.findRenderObject() as RenderBox?;
-    final origin =
-        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
     final Uint8List bytes;
     if (pdf) {
       bytes = await reportPdf(title, rows);
     } else {
       bytes = Uint8List.fromList(utf8.encode('\uFEFF${reportCsv(rows)}'));
     }
-    await Share.shareXFiles(
-        [XFile.fromData(bytes, mimeType: pdf ? 'application/pdf' : 'text/csv')],
-        fileNameOverrides: ['obelens-report.${pdf ? 'pdf' : 'csv'}'],
-        subject: title,
-        sharePositionOrigin: origin);
+    if (!context.mounted) return;
+    await exportFile(context, bytes,
+        name: 'obelens-report.${pdf ? 'pdf' : 'csv'}',
+        mimeType: pdf ? 'application/pdf' : 'text/csv',
+        title: title);
   }
 }

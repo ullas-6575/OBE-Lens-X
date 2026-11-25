@@ -109,11 +109,11 @@ B. Run with local tools
 
 5. Python dependency notes
 --------------------------
-- PaddleOCR 3.7.0 / PaddlePaddle 3.3.1 / OpenCV 4.10.0.84 are pinned and verified.
+- PaddleOCR 3.7.0 / PaddlePaddle 3.3.1 / OpenCV 4.12.0.88 are pinned and verified.
 - Pillow must stay on the 13.x line: 13.0.0 fixes image-decoder memory-safety
   bugs (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501) present in every
   older release.
-- NumPy is capped at <2.4 because PaddleOCR 3.7.0 declares numpy<2.4.
+- NumPy stays on 2.x below 2.3 for OpenCV 4.12 and PaddleOCR compatibility.
 - Python packages are installed from obelens-ocr/requirements.txt only.
 
 

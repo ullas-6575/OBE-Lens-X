@@ -26,7 +26,6 @@ class _Results implements ResultService {
     required String tableType,
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
-    String? imagePath,
   }) async {}
 }
 

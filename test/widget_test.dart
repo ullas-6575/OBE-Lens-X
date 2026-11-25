@@ -20,7 +20,6 @@ class _FakeResultService implements ResultService {
     required String tableType,
     required Map<String, Map<String, String>> marks,
     required double grandTotal,
-    String? imagePath,
   }) async {}
 }
 
@@ -260,7 +259,7 @@ void main() {
     // Grand total should decrease by 10: 91.0 - 10.0 = 81 (N/A is evaluated as 0)
     expect(find.text('81'), findsWidgets);
 
-    // Enter a non-numeric string (e.g. 'invalid_text') -> should still calculate as 0
+    // Invalid text counts as zero in the preview but cannot be saved silently.
     await tester.enterText(firstField, 'xyz');
     await tester.pumpAndSettle();
     expect(find.text('81'), findsWidgets);
@@ -269,6 +268,11 @@ void main() {
     final submitBtn = find.text('Verify & Submit');
     await tester.ensureVisible(submitBtn);
     await tester.enterText(find.byType(TextFormField), 'ROLL001');
+    await tester.tap(submitBtn);
+    await tester.pump();
+    expect(find.textContaining('must be an integer'), findsOneWidget);
+
+    await tester.enterText(firstField, 'N/A');
     await tester.tap(submitBtn);
     await tester.pumpAndSettle();
 
