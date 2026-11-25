@@ -35,6 +35,8 @@ class MainActivity : FlutterActivity() {
 	private var session: OrtSession? = null
 	private var sessionModelAsset: String? = null
 	private var environment: OrtEnvironment? = null
+	private var dictionaryAsset: String? = null
+	private var characters: List<String>? = null
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -52,7 +54,8 @@ class MainActivity : FlutterActivity() {
 						val output = if (call.method == "detectTable") {
 							detectTable(imagePath, rotation)
 						} else {
-							processTable(payload["modelAssetPath"] as String, imagePath,
+							processTable(payload["modelAssetPath"] as String,
+								payload["dictionaryAssetPath"] as String, imagePath,
 								payload["tableType"] as String, rotation, payload["corners"] as List<*>)
 						}
 						mainHandler.post { result.success(output) }
@@ -119,12 +122,14 @@ class MainActivity : FlutterActivity() {
 
 	private fun processTable(
 		modelAssetPath: String,
+		dictionaryAssetPath: String,
 		imagePath: String,
 		tableType: String,
 		rotation: Int,
 		corners: List<*>
 	): Map<String, Any?> {
 		val recognizer = getSession(modelAssetPath)
+		val recognitionCharacters = getCharacters(dictionaryAssetPath)
 		val source = loadImage(imagePath, rotation)
 		var warpedBitmap: Bitmap? = null
 		try {
@@ -159,7 +164,8 @@ class MainActivity : FlutterActivity() {
 							stream.toByteArray()
 						}
 						val empty = isBlank(cell)
-						val prediction = if (empty) Prediction("", 0.0) else recognize(recognizer, cell)
+						val prediction = if (empty) Prediction("", 0.0)
+							else recognize(recognizer, cell, recognitionCharacters)
 						val numeric = prediction.text.matches(Regex("^[0-9]{1,2}$"))
 						questionMarks[part] = if (numeric) prediction.text else "N/A"
 						scores.add(prediction.confidence)
@@ -216,11 +222,24 @@ class MainActivity : FlutterActivity() {
 		}
 	}
 
+	private fun getCharacters(dictionaryAssetPath: String): List<String> {
+		characters?.takeIf { dictionaryAsset == dictionaryAssetPath }?.let { return it }
+		val assetKey = FlutterInjector.instance().flutterLoader()
+			.getLookupKeyForAsset(dictionaryAssetPath)
+		val loaded = assets.open(assetKey).bufferedReader(Charsets.UTF_8).use { it.readLines() } + " "
+		require(loaded.distinct().size == loaded.size) { "OCR dictionary contains duplicate entries" }
+		dictionaryAsset = dictionaryAssetPath
+		characters = loaded
+		return loaded
+	}
+
 	override fun onDestroy() {
 		// Close after in-flight work finishes; never close a running session.
 		executor.execute {
 			session?.close()
 			session = null
+			characters = null
+			dictionaryAsset = null
 		}
 		executor.shutdown()
 		super.onDestroy()
@@ -256,7 +275,11 @@ class MainActivity : FlutterActivity() {
 		return ink < maxOf(8, (gray.size * .0015).toInt())
 	}
 
-	private fun recognize(ortSession: OrtSession, bitmap: Bitmap): Prediction {
+	private fun recognize(
+		ortSession: OrtSession,
+		bitmap: Bitmap,
+		characters: List<String>
+	): Prediction {
 		val resizedWidth = minOf(320, maxOf(1, (bitmap.width * 48f / bitmap.height).toInt()))
 		val resized = Bitmap.createScaledBitmap(bitmap, resizedWidth, 48, true)
 		val input = FloatArray(3 * 48 * 320) { 1f }
@@ -278,6 +301,9 @@ class MainActivity : FlutterActivity() {
 			ortSession.run(mapOf("x" to tensor)).use { outputs ->
 				@Suppress("UNCHECKED_CAST")
 				val logits = outputs[0].value as Array<Array<FloatArray>>
+				require(logits[0].isNotEmpty() && logits[0][0].size == characters.size + 1) {
+					"OCR model output does not match its dictionary"
+				}
 				var previous = 0
 				var text = ""
 				val confidences = mutableListOf<Float>()
@@ -286,7 +312,7 @@ class MainActivity : FlutterActivity() {
 					for (index in 1 until step.size) if (step[index] > step[token]) token = index
 					if (token != 0 && token != previous) {
 						confidences.add(step[token])
-						text += if (token in 1..10) (token - 1).toString() else "?"
+						text += characters[token - 1]
 					}
 					previous = token
 				}

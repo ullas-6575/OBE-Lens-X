@@ -90,8 +90,11 @@ class LocalOcrService implements BaseOcrService, TableDetectionService {
       MethodChannel('com.example.my_app/local_ocr');
 
   final String modelAssetPath;
-  const LocalOcrService(
-      {this.modelAssetPath = 'assets/ocr_model/inference.onnx'});
+  final String dictionaryAssetPath;
+  const LocalOcrService({
+    this.modelAssetPath = 'assets/ocr_model/inference.onnx',
+    this.dictionaryAssetPath = 'assets/ocr_model/ppocrv5_en_dict.txt',
+  });
 
   @override
   Future<MarksTableData> processImage({
@@ -119,6 +122,7 @@ class LocalOcrService implements BaseOcrService, TableDetectionService {
         // Android loads the asset once; avoid copying the model through Dart
         // and the platform channel for every scan.
         'modelAssetPath': modelAssetPath,
+        'dictionaryAssetPath': dictionaryAssetPath,
         'imagePath': imagePath,
         'tableType': tableType,
         'rotation': selection.rotation,

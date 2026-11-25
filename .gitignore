@@ -9,6 +9,7 @@
 .history
 .svn/
 migrate_working_dir/
+:memory:.ses
 
 # Local tool and operating-system metadata
 .metadata

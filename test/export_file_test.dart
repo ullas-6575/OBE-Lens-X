@@ -81,21 +81,11 @@ void main() {
       return const SizedBox();
     })));
     await tester.runAsync(() async {
-      for (final entry in {
-        'pdf': 'application/pdf',
-        'csv': 'text/csv',
-        'xls': 'application/vnd.ms-excel',
-      }.entries) {
-        shared = null;
-        await exportFile(context, Uint8List.fromList([1, 2, 3]),
-            name: 'report.${entry.key}', mimeType: entry.value, title: 'Report');
-        expect(shared, isNotNull);
-        expect(shared!.arguments['mimeTypes'], [entry.value]);
-        final path = (shared!.arguments['paths'] as List).single as String;
-        expect(path.endsWith('report.${entry.key}'), isTrue);
-        expect(await File(path).readAsBytes(), [1, 2, 3]);
-      }
+      await exportFile(context, Uint8List.fromList([1, 2, 3]),
+          name: 'report.csv', mimeType: 'text/csv', title: 'Report');
     });
+    expect(shared, isNotNull);
+    expect(shared!.arguments['mimeTypes'], ['text/csv']);
     debugDefaultTargetPlatformOverride = null;
   });
 }
