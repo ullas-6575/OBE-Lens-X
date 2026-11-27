@@ -2,6 +2,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/result_service.dart';
 import 'models.dart';
 
+class ResultConflict implements Exception {
+  final Json previous;
+  const ResultConflict(this.previous);
+
+  @override
+  String toString() =>
+      'Marks already exist for this student and question group.';
+}
+
 /// Screens depend on this port; database queries stay in the Supabase adapter.
 abstract interface class WorkflowRepository {
   Future<Json> profile();
@@ -25,7 +34,8 @@ abstract interface class WorkflowRepository {
   Future<void> saveExam(Exam exam);
   Future<List<Json>> results(String examId);
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks);
+      Map<String, Map<String, String>> marks,
+      {Json? previous, List<String>? selectedQuestions});
 }
 
 class SupabaseWorkflowRepository implements WorkflowRepository {
@@ -202,17 +212,31 @@ class SupabaseWorkflowRepository implements WorkflowRepository {
 
   @override
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks) async {
+      Map<String, Map<String, String>> marks,
+      {Json? previous, List<String>? selectedQuestions}) async {
     final error = context.validateMarks(group, marks);
     if (error != null) throw FormatException(error);
-    await client.rpc('save_verified_marks', params: {
+    final selected =
+        context.exam.countedQuestions(group, selectedQuestions, marks);
+    if (selected == null) {
+      throw const FormatException('Select exactly three questions to count.');
+    }
+    final response = await client.rpc('save_question_group', params: {
       'p_exam_id': context.exam.id,
       'p_roll_no': context.rollNo,
       'p_submission_id': submissionId,
       'p_table_type': group,
       'p_marks': marks,
       'p_exam_revision': context.exam.revision,
+      'p_selected_questions': selected,
+      if (previous != null) ...{
+        'p_result_id': previous['id'],
+        'p_result_revision': previous['revision'],
+      },
     });
+    if (response is Map && response['status'] == 'conflict') {
+      throw ResultConflict(Json.from(response['previous'] as Map));
+    }
   }
 }
 

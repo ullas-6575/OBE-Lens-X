@@ -40,6 +40,12 @@ Future<ReportSnapshot> loadExamReport(WorkflowRepository repository,
       '1 = threshold met; 0 = below threshold; N/A = CO not assessed or script excluded'
     ],
     ['Required groups', exam.requiredGroups.join(', ')],
+    if (exam.requiredGroups
+        .any((group) => exam.questionNumbers(group).length > 3))
+      [
+        'Question choice',
+        'Three answers count automatically; when four are answered, the teacher selects three. Missing answer slots score zero in the overall total.'
+      ],
     ['Students / excluded scripts', '${report.students} / ${report.excluded}'],
     ['Roll no', ...CourseOutcome.codes],
     for (final student in report.studentRows)

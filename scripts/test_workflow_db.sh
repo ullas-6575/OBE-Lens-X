@@ -12,15 +12,13 @@ trap cleanup EXIT
 "$pg_bin/initdb" -D "$test_dir/data" -A trust --no-locale >/dev/null
 "$pg_bin/pg_ctl" -D "$test_dir/data" -l "$test_dir/postgres.log" \
   -o "-k $test_dir -c listen_addresses=''" start >/dev/null
+files=(-f "$project_dir/supabase/tests/auth_stub.sql")
+for migration in "$project_dir"/supabase/migrations/*.sql; do
+  files+=(-f "$migration")
+done
 psql -X -h "$test_dir" -d postgres -v ON_ERROR_STOP=1 \
-  -f "$project_dir/supabase/tests/auth_stub.sql" \
-  -f "$project_dir/supabase/migrations/20261013200000_create_results.sql" \
-  -f "$project_dir/supabase/migrations/20261024164156_academic_workflow.sql" \
-  -f "$project_dir/supabase/migrations/20261103140523_allow_admin_course_delete.sql" \
-  -f "$project_dir/supabase/migrations/20261103174106_add_fixed_course_outcomes.sql" \
-  -f "$project_dir/supabase/migrations/20261103174528_remove_attainment_exclusion_options.sql" \
-  -f "$project_dir/supabase/migrations/20261104000440_limit_teacher_course_visibility.sql" \
-  -f "$project_dir/supabase/migrations/20261110120000_limit_course_outcomes_and_disable_result_edits.sql" \
-  -f "$project_dir/supabase/migrations/20261120120000_registration_status.sql" \
-  -f "$project_dir/supabase/migrations/20261120130000_repair_registration_review_access.sql" \
-  -f "$project_dir/supabase/tests/workflow.sql"
+  "${files[@]}" -v keep_shared_fixtures=1 \
+  -f "$project_dir/supabase/tests/workflow.sql" \
+  -f "$project_dir/supabase/tests/shared_marks.sql" \
+  -f "$project_dir/supabase/tests/selected_questions.sql"
+python3 "$project_dir/supabase/tests/shared_marks_concurrency.py" "$test_dir"

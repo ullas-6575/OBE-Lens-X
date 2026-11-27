@@ -47,14 +47,10 @@ class _StudentScanPageState extends State<StudentScanPage> {
       final remaining = widget.scan.exam.requiredGroups
           .where((group) => !saved.contains(group))
           .toList();
-      if (remaining.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'All required groups are already scanned. Use All results to view or correct marks.')));
-        Navigator.of(context).pop();
-        return;
-      }
-      await _scan(remaining);
+      await _scan([
+        ...remaining,
+        ...widget.scan.exam.requiredGroups.where(saved.contains),
+      ]);
     } catch (error) {
       if (mounted) {
         setState(() => _error = 'Could not load scan status: $error');
@@ -74,7 +70,7 @@ class _StudentScanPageState extends State<StudentScanPage> {
                 widget.scan.exam, values.first))));
   }
 
-  Future<void> _scan(List<String> remaining) async {
+  Future<void> _scan(List<String> groups) async {
     final route = ModalRoute.of(context);
     var handled = false;
     await openPage(
@@ -84,26 +80,32 @@ class _StudentScanPageState extends State<StudentScanPage> {
             workflow: ScanWorkflow(
                 rollNo: widget.scan.rollNo,
                 description: widget.scan.label,
-                groups: remaining,
+                groups: groups,
                 validate: widget.scan.validateMarks,
                 review: (data) async {
+                  final results =
+                      await widget.repository.results(widget.scan.exam.id);
+                  if (!mounted) return;
+                  final saved = results
+                      .where((row) => row['roll_no'] == widget.scan.rollNo)
+                      .map((row) => row['table_type'])
+                      .toSet();
+                  final remaining = widget.scan.exam.requiredGroups
+                      .where((group) =>
+                          group != data.tableType && !saved.contains(group))
+                      .toList();
                   final next = await openPage<String>(
                       context,
                       SubmissionPage(
                           repository: widget.repository,
                           scan: widget.scan,
                           data: data,
-                          remainingGroups: remaining
-                              .where((group) => group != data.tableType)
-                              .toList()));
+                          remainingGroups: remaining));
                   if (!mounted || next == null) return;
                   handled = true;
                   Navigator.of(context).popUntil((r) => r == route);
                   if (next == 'remaining') {
-                    final nextGroups = remaining
-                        .where((group) => group != data.tableType)
-                        .toList();
-                    if (nextGroups.isNotEmpty) await _scan(nextGroups);
+                    if (remaining.isNotEmpty) await _scan(remaining);
                     return;
                   }
                   if (next == 'next') {
@@ -170,17 +172,89 @@ class SubmissionPage extends StatefulWidget {
 
 class _SubmissionPageState extends State<SubmissionPage> {
   late final String _submissionId = newSubmissionId();
+  late MarksTableData _displayData = widget.data;
+  late Set<String> _selectedQuestions = (widget.scan.exam.countedQuestions(
+              widget.data.tableType,
+              widget.previous?['selected_questions'],
+              widget.data.cellMarks) ??
+          const <String>[])
+      .toSet();
   bool _busy = false, _saved = false;
+  bool _keptPrevious = false;
   String? _error;
+  Json get _displayResult => {
+        'table_type': widget.data.tableType,
+        'marks': _displayData.cellMarks,
+        'selected_questions': _selectedQuestions.toList(),
+      };
+  bool get _selectionReady =>
+      widget.scan.exam.countedQuestions(widget.data.tableType,
+          _selectedQuestions.toList(), _displayData.cellMarks) !=
+      null;
   Future<void> _save() async {
+    if (_busy || _saved || !_selectionReady) return;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await widget.repository.saveMarks(widget.scan, _submissionId,
-          widget.data.tableType, widget.data.cellMarks);
-      if (mounted) setState(() => _saved = true);
+      Json? previous;
+      while (mounted) {
+        try {
+          await widget.repository.saveMarks(widget.scan, _submissionId,
+              widget.data.tableType, widget.data.cellMarks,
+              previous: previous,
+              selectedQuestions: _selectedQuestions.toList());
+          if (mounted) setState(() => _saved = true);
+          return;
+        } on ResultConflict catch (conflict) {
+          if (!mounted) return;
+          final savedMarks = (conflict.previous['marks'] as Map).map(
+              (q, cells) => MapEntry(
+                  q.toString(),
+                  (cells as Map).map(
+                      (p, value) => MapEntry(p.toString(), value.toString()))));
+          final savedData = MarksTableData(
+              tableType: widget.data.tableType, cellMarks: savedMarks);
+          final replace = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                    title: const Text('Replace previous marks?'),
+                    content: Text(
+                        '${previous != null ? 'The saved marks changed since your last confirmation. ' : ''}'
+                        'Q${widget.data.tableType} marks for ${widget.scan.rollNo} are already saved. '
+                        'Previous counted total: ${widget.scan.exam.countedTotal(conflict.previous)?.toStringAsFixed(0) ?? 'selection required'}. '
+                        'New counted total: ${widget.scan.exam.countedTotal(_displayResult)?.toStringAsFixed(0)}. '
+                        'Replace this question group or keep the previous marks? '
+                        'The other question group will stay as it is.'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Keep previous')),
+                      FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Replace marks')),
+                    ],
+                  ));
+          if (!mounted) return;
+          if (replace != true) {
+            setState(() {
+              _displayData = savedData;
+              _selectedQuestions = (widget.scan.exam.countedQuestions(
+                          widget.data.tableType,
+                          conflict.previous['selected_questions'],
+                          savedData.cellMarks) ??
+                      const <String>[])
+                  .toSet();
+              _keptPrevious = true;
+              _saved = true;
+            });
+            return;
+          }
+          previous = conflict.previous;
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() =>
@@ -195,22 +269,57 @@ class _SubmissionPageState extends State<SubmissionPage> {
   Widget build(BuildContext context) => PopScope(
       canPop: !_busy && !_saved,
       child: WorkflowPage(
-          title: _saved ? 'Result saved' : 'Submission summary',
+          title: _saved
+              ? _keptPrevious
+                  ? 'Previous marks kept'
+                  : 'Result saved'
+              : 'Submission summary',
           children: [
             Text(widget.scan.label),
             Text('Group: Q${widget.data.tableType}'),
             if (widget.previous != null)
               Text(
                   'Revision ${widget.previous!['revision']} → ${(widget.previous!['revision'] as int) + 1}'),
-            MarksGridTable(marks: widget.data.cellMarks),
-            Text('Total: ${widget.data.grandTotal.toStringAsFixed(0)}',
+            MarksGridTable(marks: _displayData.cellMarks),
+            const SizedBox(height: 12),
+            if (widget.scan.exam
+                    .answeredQuestions(
+                        widget.data.tableType, _displayData.cellMarks)
+                    .length >
+                3) ...[
+              Text(
+                  'Select exactly ${widget.scan.exam.questionsToCount(widget.data.tableType)} questions to count.'),
+              Wrap(spacing: 8, children: [
+                for (final question
+                    in widget.scan.exam.questionNumbers(widget.data.tableType))
+                  FilterChip(
+                    label: Text('Count Q$question'),
+                    selected: _selectedQuestions.contains(question),
+                    onSelected: _busy || _saved
+                        ? null
+                        : (selected) => setState(() {
+                              if (selected) {
+                                _selectedQuestions.add(question);
+                              } else {
+                                _selectedQuestions.remove(question);
+                              }
+                            }),
+                  ),
+              ]),
+            ] else
+              Text(
+                  'Counted automatically: ${_selectedQuestions.isEmpty ? 'No answered questions' : _selectedQuestions.map((q) => 'Q$q').join(', ')}. '
+                  'Missing answers count as zero.'),
+            Text(
+                'Counted total: ${widget.scan.exam.countedTotal(_displayResult)?.toStringAsFixed(0) ?? 'Select questions'}'
+                ' / ${widget.scan.exam.countedMaximum(_displayResult) ?? '—'}',
                 style: Theme.of(context).textTheme.headlineSmall),
             if (_error != null)
               Text(_error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             if (!_saved)
               FilledButton(
-                  onPressed: _busy ? null : _save,
+                  onPressed: _busy || !_selectionReady ? null : _save,
                   child: Text(_busy
                       ? 'Saving…'
                       : _error == null
@@ -354,28 +463,18 @@ class StudentResultPage extends StatelessWidget {
               (part, value) => MapEntry(part.toString(), value.toString()))));
 
   double _savedTotal(Json result) {
-    final total = result['grand_total'];
-    if (total is num) return total.toDouble();
-    return double.tryParse(total?.toString() ?? '') ??
-        _marks(result).values.fold<double>(
-            0,
-            (sum, cells) =>
-                sum +
-                cells.values.fold<double>(
-                    0,
-                    (subtotal, mark) =>
-                        subtotal + MarksTableData.parseMarkValue(mark)));
+    return scan.exam.countedTotal(result) ?? 0;
   }
 
   @override
   Widget build(BuildContext context) {
     final savedGroups = results.map((result) => result['table_type']).toSet();
-    final complete = scan.exam.requiredGroups.every(savedGroups.contains);
+    final complete = scan.exam.requiredGroups.every(savedGroups.contains) &&
+        results.every((result) => scan.exam.countedTotal(result) != null);
     final earnedTotal =
         results.fold<double>(0, (total, result) => total + _savedTotal(result));
-    final maximumTotal = scan.exam.questions
-        .where((question) => scan.exam.requiredGroups.contains(question.group))
-        .fold<int>(0, (total, question) => total + question.maxMark);
+    final maximumTotal = results.fold<int>(
+        0, (total, result) => total + (scan.exam.countedMaximum(result) ?? 0));
     final percent = maximumTotal == 0 ? null : earnedTotal * 100 / maximumTotal;
     final gpa =
         complete && percent != null ? bangladeshUgcGradePoint(percent) : null;
@@ -395,12 +494,44 @@ class StudentResultPage extends StatelessWidget {
                       Text(
                           'Q${result['table_type']} · revision ${result['revision']}',
                           style: Theme.of(context).textTheme.titleMedium),
-                      MarksGridTable(marks: _marks(result), showTotals: true),
+                      MarksGridTable(
+                          marks: _marks(result),
+                          showTotals: true,
+                          countedQuestions: scan.exam
+                                  .countedQuestions(
+                                      result['table_type'],
+                                      result['selected_questions'],
+                                      result['marks'] as Map)
+                                  ?.toSet() ??
+                              const {}),
+                      Text(
+                          'Counted questions: ${scan.exam.countedQuestions(result['table_type'], result['selected_questions'], result['marks'] as Map)?.map((q) => 'Q$q').join(', ') ?? 'Selection required'}'),
+                      if (scan.exam
+                              .answeredQuestions(
+                                  result['table_type'], result['marks'] as Map)
+                              .length >
+                          3)
+                        TextButton(
+                            onPressed: () async {
+                              final action = await openPage<String>(
+                                  context,
+                                  SubmissionPage(
+                                      repository: repository,
+                                      scan: scan,
+                                      previous: result,
+                                      data: MarksTableData(
+                                          tableType: result['table_type'],
+                                          cellMarks: _marks(result))));
+                              if (context.mounted && action == 'results') {
+                                Navigator.pop(context);
+                              }
+                            },
+                            child: const Text('Choose counted questions')),
                       const SizedBox(height: 10),
                       Align(
                           alignment: Alignment.centerRight,
                           child: Text(
-                              'Group total: ${_savedTotal(result).toStringAsFixed(0)} / ${scan.exam.questions.where((q) => q.group == result['table_type']).fold<int>(0, (sum, q) => sum + q.maxMark)}',
+                              'Group total: ${scan.exam.countedTotal(result)?.toStringAsFixed(0) ?? 'Pending'} / ${scan.exam.countedMaximum(result) ?? '—'}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700))),
                     ]))),
@@ -414,7 +545,9 @@ class StudentResultPage extends StatelessWidget {
           child: Wrap(spacing: 24, runSpacing: 12, children: [
             _ResultSummaryValue(
                 label: 'Merged total',
-                value: '${earnedTotal.toStringAsFixed(0)} / $maximumTotal'),
+                value: results.any((row) => scan.exam.countedTotal(row) == null)
+                    ? 'Question selection required'
+                    : '${earnedTotal.toStringAsFixed(0)} / $maximumTotal'),
             _ResultSummaryValue(
                 label: 'Overall',
                 value: complete && percent != null

@@ -93,16 +93,15 @@ void main() {
           QuestionMapping('3', 'a', 'CO3', 10),
           QuestionMapping('4', 'a', 'CO4', 10),
         ]);
-    final result = row('1', '10');
+    final result = row('1', '10')..['selected_questions'] = ['1', '2', '3'];
     final marks = result['marks'] as Map;
     marks['1']['b'] = '5';
     marks['2']['a'] = '7';
-    marks['3']['a'] = 'N/A';
+    marks['3']['a'] = '0';
     marks['4']['a'] = '10';
     final report = calculator.calculate(course, exam, [result]);
-    expect(report.studentRows.single.outcomes,
-        {'CO1': 1, 'CO2': 0, 'CO3': 0, 'CO4': 1});
-    expect(report.outcomes.map((score) => score.percent), [100, 0, 0, 100]);
+    expect(report.studentRows.single.outcomes, {'CO1': 1, 'CO2': 0, 'CO3': 0});
+    expect(report.outcomes.map((score) => score.percent), [100, 0, 0, null]);
     expect(report.poContribution['PO1'], 100);
   });
   test('Report and spreadsheet include every roll and per-CO levels', () async {

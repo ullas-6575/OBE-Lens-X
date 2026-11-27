@@ -62,6 +62,13 @@ class AttainmentCalculator {
         issues.add('${result['roll_no']}: $validation');
         invalidStudents.add(result['roll_no'] as String);
       }
+      if (exam.countedQuestions(
+              group, result['selected_questions'], result['marks'] as Map) ==
+          null) {
+        issues.add(
+            '${result['roll_no']}: select three counted questions for Q$group.');
+        invalidStudents.add(result['roll_no'] as String);
+      }
     }
     var excluded = 0;
     final eligible = <String, int>{};
@@ -92,6 +99,10 @@ class AttainmentCalculator {
       final earned = <String, double>{};
       final possible = <String, double>{};
       for (final q in exam.questions) {
+        if (!exam
+            .countedQuestions(q.group, groups[q.group]!['selected_questions'],
+                groups[q.group]!['marks'] as Map)!
+            .contains(q.question)) continue;
         final marks = groups[q.group]!['marks'] as Map;
         final value = (marks[q.question] as Map?)?[q.part]?.toString() ?? 'N/A';
         earned.update(q.co, (v) => v + MarksTableData.parseMarkValue(value),
