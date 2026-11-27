@@ -10,6 +10,7 @@
 .svn/
 migrate_working_dir/
 :memory:.ses
+.vscode/
 
 # Local tool and operating-system metadata
 .metadata
@@ -56,6 +57,9 @@ id_ed25519
 .vscode/
 
 # Flutter/Dart/Pub related
+# Unsupported Apple platforms
+/ios/
+/macos/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
