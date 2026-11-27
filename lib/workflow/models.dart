@@ -72,13 +72,60 @@ class QuestionMapping {
 
 /// Policy is explicit and versioned with each exam. Checkbox PO links are unweighted.
 class AttainmentPolicy {
+  static const defaultLevelBounds = [55.0, 65.0, 75.0, 85.0];
+
+  // Keep targetPercent in saved JSON for compatibility with existing databases.
   final double scoreThreshold, targetPercent;
-  const AttainmentPolicy({this.scoreThreshold = 50, this.targetPercent = 60});
+  final List<double> levelBounds;
+  const AttainmentPolicy(
+      {this.scoreThreshold = 50,
+      this.targetPercent = 60,
+      this.levelBounds = defaultLevelBounds});
   factory AttainmentPolicy.fromJson(Json j) => AttainmentPolicy(
       scoreThreshold: (j['score_threshold'] as num).toDouble(),
-      targetPercent: (j['target_percent'] as num).toDouble());
-  Json toJson() =>
-      {'score_threshold': scoreThreshold, 'target_percent': targetPercent};
+      targetPercent: (j['target_percent'] as num?)?.toDouble() ?? 60,
+      levelBounds: j['level_bounds'] == null
+          ? defaultLevelBounds
+          : (j['level_bounds'] as List)
+              .map((value) => (value as num).toDouble())
+              .toList());
+  Json toJson() => {
+        'score_threshold': scoreThreshold,
+        'target_percent': targetPercent,
+        'level_bounds': levelBounds,
+      };
+
+  String? validate() {
+    if (!scoreThreshold.isFinite ||
+        scoreThreshold < 0 ||
+        scoreThreshold > 100) {
+      return 'Enter a student score threshold between 0 and 100.';
+    }
+    if (levelBounds.length != 4) return 'Enter four attainment level cutoffs.';
+    for (var index = 0; index < levelBounds.length; index++) {
+      final bound = levelBounds[index];
+      if (!bound.isFinite ||
+          bound < 0 ||
+          bound >= 100 ||
+          (index > 0 && bound <= levelBounds[index - 1])) {
+        return 'Level cutoffs must increase from L0 to L3 and be between 0 and less than 100.';
+      }
+    }
+    return null;
+  }
+
+  String level(double? percent) {
+    if (percent == null) return 'N/A';
+    final index = levelBounds.indexWhere((bound) => percent <= bound);
+    return 'L${index < 0 ? 4 : index}';
+  }
+
+  String get levelDescription => [
+        'L0: 0–${levelBounds[0]}%',
+        for (var index = 1; index < levelBounds.length; index++)
+          'L$index: >${levelBounds[index - 1]}–${levelBounds[index]}%',
+        'L4: >${levelBounds.last}%',
+      ].join('; ');
 }
 
 class Exam {
@@ -107,6 +154,8 @@ class Exam {
       policy: AttainmentPolicy.fromJson(Json.from(j['policy'])));
 
   String? validate(Course course) {
+    final policyError = policy.validate();
+    if (policyError != null) return policyError;
     if (questions.isEmpty) {
       return 'Configure questions and CO mappings before scanning.';
     }

@@ -83,7 +83,7 @@ class _ExamPageState extends State<ExamPage> {
                     exam: _exam))),
         ActionTile(
             'Calculate attainment',
-            'CO attainment → course PO contribution → export',
+            'Student CO1–CO4 worksheet, attainment levels and PO contribution',
             Icons.analytics,
             () => openPage(
                 context,
@@ -114,8 +114,10 @@ class _ExamEditorState extends State<ExamEditor> {
   late final _name = TextEditingController(text: widget.exam.name);
   late final _threshold =
       TextEditingController(text: widget.exam.policy.scoreThreshold.toString());
-  late final _target =
-      TextEditingController(text: widget.exam.policy.targetPercent.toString());
+  late final _levelBounds = [
+    for (final bound in widget.exam.policy.levelBounds)
+      TextEditingController(text: bound.toString()),
+  ];
   final Map<String, TextEditingController> _maxMarkControllers = {};
   final Map<String, String> _cellOutcomes = {};
   late final _groups = <String>{
@@ -136,7 +138,9 @@ class _ExamEditorState extends State<ExamEditor> {
   void dispose() {
     _name.dispose();
     _threshold.dispose();
-    _target.dispose();
+    for (final controller in _levelBounds) {
+      controller.dispose();
+    }
     for (final controller in _maxMarkControllers.values) {
       controller.dispose();
     }
@@ -284,17 +288,12 @@ class _ExamEditorState extends State<ExamEditor> {
   }
 
   Future<void> _save() async {
-    final threshold = double.tryParse(_threshold.text),
-        target = double.tryParse(_target.text);
-    if (_name.text.trim().isEmpty ||
-        threshold == null ||
-        target == null ||
-        !threshold.isFinite ||
-        !target.isFinite ||
-        threshold < 0 ||
-        threshold > 100 ||
-        target < 0 ||
-        target > 100) {
+    final threshold = double.tryParse(_threshold.text);
+    final bounds = [
+      for (final controller in _levelBounds)
+        double.tryParse(controller.text) ?? double.nan,
+    ];
+    if (_name.text.trim().isEmpty || threshold == null) {
       showError(
           context, 'Enter an exam name and percentages between 0 and 100.');
       return;
@@ -308,8 +307,10 @@ class _ExamEditorState extends State<ExamEditor> {
         questions: mappings,
         requiredGroups: _groups.toList()..sort(),
         revision: widget.exam.revision,
-        policy:
-            AttainmentPolicy(scoreThreshold: threshold, targetPercent: target));
+        policy: AttainmentPolicy(
+            scoreThreshold: threshold,
+            targetPercent: widget.exam.policy.targetPercent,
+            levelBounds: bounds));
     final error = exam.validate(widget.course);
     if (error != null) {
       showError(context, error);
@@ -351,7 +352,7 @@ class _ExamEditorState extends State<ExamEditor> {
                 group, 'Questions $group · course outcomes', _outcomeCell),
           ],
         const Divider(),
-        Text('Attainment thresholds and target',
+        Text('Attainment threshold and levels',
             style: Theme.of(context).textTheme.titleLarge),
         TextFormField(
             controller: _threshold,
@@ -359,14 +360,18 @@ class _ExamEditorState extends State<ExamEditor> {
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
                 labelText: 'Student score threshold (%)')),
-        TextFormField(
-            controller: _target,
-            enabled: !_disabled,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-                labelText: 'Target percentage of eligible students (%)')),
+        for (var index = 0; index < _levelBounds.length; index++)
+          TextFormField(
+              controller: _levelBounds[index],
+              enabled: !_disabled,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  labelText: 'L$index upper cutoff (%) — inclusive')),
         const Text(
-            'CO attainment = eligible students meeting the score threshold ÷ eligible students. PO contribution = equal mean of linked CO percentages. N/A marks count as zero.'),
+            'L4 applies above the L3 cutoff. Cutoffs can differ for each exam.'),
+        const Text(
+            'For each student, CO = 1 when their CO marks meet the score threshold, otherwise 0. CO attainment % = students with 1 ÷ eligible students × 100; its level follows the cutoffs above. PO contribution = equal mean of linked CO percentages. N/A marks count as zero; incomplete scripts are excluded.'),
         if (!widget.readOnly)
           FilledButton(
               onPressed: _busy ? null : _save,

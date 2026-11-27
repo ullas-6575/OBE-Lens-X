@@ -6,8 +6,8 @@ import 'export_file.dart';
 
 import 'models.dart';
 
-/// Builds an Excel-readable SpreadsheetML workbook with one row per roll number.
-String resultsExcelXml(Exam exam, List<Json> results) {
+/// Merges question groups into one row per roll for the selected exam.
+List<List<String>> resultsWorksheet(Exam exam, List<Json> results) {
   final mappings = [...exam.questions]..sort((a, b) {
       final questionOrder =
           int.parse(a.question).compareTo(int.parse(b.question));
@@ -16,21 +16,24 @@ String resultsExcelXml(Exam exam, List<Json> results) {
   final columns = mappings.map((q) => '${q.question}${q.part}').toList();
   final byRoll = <String, Map<String, Json>>{};
   for (final result in results) {
+    if (result['exam_id'] != exam.id) continue;
     final roll = result['roll_no'].toString();
     byRoll.putIfAbsent(roll, () => {})[result['table_type'].toString()] =
         result;
   }
-  final rolls = byRoll.keys.toList()..sort();
-
-  String cell(String value) =>
-      '<Cell><Data ss:Type="String">${_xmlEscape(value)}</Data></Cell>';
-  final output = StringBuffer()
-    ..write('<?xml version="1.0" encoding="UTF-8"?>')
-    ..write('<?mso-application progid="Excel.Sheet"?>')
-    ..write('<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
-        'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">')
-    ..write('<Worksheet ss:Name="Results"><Table>')
-    ..write('<Row>${cell('Roll')}${columns.map(cell).join()}</Row>');
+  final rolls = byRoll.keys.toList()
+    ..sort((a, b) {
+      final first = int.tryParse(a), second = int.tryParse(b);
+      if (first == null && second != null) return 1;
+      if (first != null && second == null) return -1;
+      final order = first != null && second != null
+          ? first.compareTo(second)
+          : a.compareTo(b);
+      return order == 0 ? a.compareTo(b) : order;
+    });
+  final rows = <List<String>>[
+    ['Roll', ...columns],
+  ];
 
   for (final roll in rolls) {
     final groups = byRoll[roll]!;
@@ -40,20 +43,43 @@ String resultsExcelXml(Exam exam, List<Json> results) {
       final marks = result?['marks'];
       final questionMarks = marks is Map ? marks[mapping.question] : null;
       final mark = questionMarks is Map ? questionMarks[mapping.part] : null;
-      values.add(mark?.toString() ?? '');
+      values.add(mark?.toString() ?? 'N/A');
     }
-    output.write('<Row>${values.map(cell).join()}</Row>');
+    rows.add(values);
   }
-  output.write('</Table></Worksheet></Workbook>');
+  return rows;
+}
+
+/// String cells preserve roll numbers, leading zeroes and literal formulas.
+String workbookExcelXml(Map<String, List<List<String>>> sheets) {
+  final escape = const HtmlEscape(HtmlEscapeMode.element).convert;
+  final attribute = const HtmlEscape(HtmlEscapeMode.attribute).convert;
+  String cell(String value) =>
+      '<Cell><Data ss:Type="String">${escape(value)}</Data></Cell>';
+  final output = StringBuffer()
+    ..write('<?xml version="1.0" encoding="UTF-8"?>')
+    ..write('<?mso-application progid="Excel.Sheet"?>')
+    ..write('<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '
+        'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">');
+  for (final sheet in sheets.entries) {
+    final sheetName = sheet.key.replaceAll(RegExp(r'[\[\]:*?/\\]'), '_').trim();
+    final safeName = sheetName.isEmpty ? 'Sheet1' : sheetName;
+    output
+      ..write(
+          '<Worksheet ss:Name="${attribute(safeName.substring(0, safeName.length > 31 ? 31 : safeName.length))}"><Table>')
+      ..write(
+          sheet.value.map((row) => '<Row>${row.map(cell).join()}</Row>').join())
+      ..write('</Table></Worksheet>');
+  }
+  output.write('</Workbook>');
   return output.toString();
 }
 
-String _xmlEscape(String value) => value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
+String worksheetExcelXml(String name, List<List<String>> rows) =>
+    workbookExcelXml({name: rows});
+
+String resultsExcelXml(Exam exam, List<Json> results) =>
+    worksheetExcelXml('Results', resultsWorksheet(exam, results));
 
 Future<void> shareResultsExcel(BuildContext context, String examName, Exam exam,
     List<Json> results) async {

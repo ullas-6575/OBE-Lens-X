@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/workflow/export_file.dart';
+import 'package:my_app/workflow/report_export.dart';
 
 class SaveSelector extends FileSelectorPlatform {
   String? path;
@@ -36,7 +37,7 @@ void main() {
         context = value;
         return const SizedBox();
       })));
-      for (final extension in ['pdf', 'csv', 'xls']) {
+      for (final extension in ['xls']) {
         selector.path = '${directory.path}/report.$extension';
         await exportFile(context, Uint8List.fromList([1, 2, 3]),
             name: 'report.$extension',
@@ -47,8 +48,10 @@ void main() {
       }
       selector.path = null;
       await exportFile(context, Uint8List(0),
-          name: 'cancel.csv', mimeType: 'text/csv', title: 'Report');
-      expect(directory.listSync().length, 3);
+          name: 'cancel.xls',
+          mimeType: 'application/vnd.ms-excel',
+          title: 'Report');
+      expect(directory.listSync().length, 1);
       debugDefaultTargetPlatformOverride = null;
     });
   });
@@ -81,11 +84,24 @@ void main() {
       return const SizedBox();
     })));
     await tester.runAsync(() async {
-      await exportFile(context, Uint8List.fromList([1, 2, 3]),
-          name: 'report.csv', mimeType: 'text/csv', title: 'Report');
+      await const ShareReportExporter().export(context, 'CSE3200 - Final', [
+        ['Course', 'CSE3200'],
+        ['Roll no', 'CO1', 'CO2', 'CO3', 'CO4'],
+        ['001', '1', '0', '1', '0'],
+        ['CO', 'Eligible', 'Attained', 'Attainment %', 'Level'],
+        ['CO1', '1', '1', '100', 'L4'],
+        ['PO', 'Contribution %', 'Level'],
+        ['PO1', '100', 'L4'],
+      ]);
     });
     expect(shared, isNotNull);
-    expect(shared!.arguments['mimeTypes'], ['text/csv']);
+    expect(shared!.arguments['mimeTypes'], ['application/vnd.ms-excel']);
+    final path = (shared!.arguments['paths'] as List).single as String;
+    expect(path, endsWith('/CSE3200 - Final-attainment.xls'));
+    final workbook = File(path).readAsStringSync();
+    expect(workbook, contains('<Worksheet ss:Name="Student CO attainment">'));
+    expect(workbook, contains('<Data ss:Type="String">001</Data>'));
+    expect(RegExp('<Worksheet ').allMatches(workbook).length, 4);
     debugDefaultTargetPlatformOverride = null;
   });
 }
