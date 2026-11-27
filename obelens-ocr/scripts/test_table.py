@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('image', type=Path)
     parser.add_argument('--table-type', choices=['1-4', '5-8'], default='1-4')
-    parser.add_argument('--model-dir', default='models/pretrained/en_PP-OCRv5_mobile_rec')
+    parser.add_argument('--model-dir', default=RecognitionConfig().model_dir)
     parser.add_argument('--max-mark', type=int)
     parser.add_argument('--corners', help='JSON corners in TL,TR,BR,BL order')
     parser.add_argument('--output', type=Path, default=Path('outputs/predictions/table.json'))

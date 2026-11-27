@@ -1,4 +1,4 @@
-"""Register an installed OBE Lens binary as the current user's auth-link handler."""
+"""Register an installed OBE-Lens binary as the current user's auth-link handler."""
 import argparse
 import os
 from pathlib import Path
@@ -11,8 +11,10 @@ def desktop_entry(executable):
     value = str(executable).replace('%', '%%')
     for character in ('\\', '"', '`', '$'):
         value = value.replace(character, '\\' + character)
-    return ('[Desktop Entry]\nType=Application\nName=OBE Lens\n'
+    icon = str(executable.parent / 'data' / 'obe_lens_icon.png').replace('\\', '\\\\')
+    return ('[Desktop Entry]\nType=Application\nName=OBE-Lens\n'
             f'Exec="{value}" %u\nTerminal=false\n'
+            f'Icon={icon}\n'
             'MimeType=x-scheme-handler/com.obelens.app;\n')
 
 
@@ -27,15 +29,15 @@ def main():
         import winreg
         root = r'Software\Classes\com.obelens.app'
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, root) as key:
-            winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'URL:OBE Lens')
+            winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'URL:OBE-Lens')
             winreg.SetValueEx(key, 'URL Protocol', 0, winreg.REG_SZ, '')
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, root + r'\shell\open\command') as key:
             winreg.SetValueEx(key, '', 0, winreg.REG_SZ, f'"{executable}" "%1"')
     elif sys.platform.startswith('linux'):
         directory = Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'applications'
         directory.mkdir(parents=True, exist_ok=True)
-        (directory / 'obelens.desktop').write_text(desktop_entry(executable), encoding='utf-8')
-        subprocess.run(['xdg-mime', 'default', 'obelens.desktop',
+        (directory / 'com.example.my_app.desktop').write_text(desktop_entry(executable), encoding='utf-8')
+        subprocess.run(['xdg-mime', 'default', 'com.example.my_app.desktop',
                         'x-scheme-handler/com.obelens.app'], check=True)
     else:
         parser.error('Only Linux and Windows are supported.')

@@ -10,7 +10,7 @@ ImageInput = Union[str, Path, Image.Image, np.ndarray]
 def prepare_cell(image: ImageInput) -> np.ndarray:
     """Return uint8 BGR. NumPy inputs follow OpenCV BGR/BGRA conventions.
 
-    Preserve faint strokes, aspect ratio and whitespace for the first baseline.
+    Preserve faint strokes, aspect ratio and whitespace for recognition.
     Crops must already exclude grid borders. No thresholding or tensor scaling.
     """
     if isinstance(image, (str, Path)):

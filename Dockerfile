@@ -24,15 +24,10 @@ RUN flutter pub get
 COPY . .
 RUN flutter build web --release
 
-FROM --platform=linux/amd64 python:3.11-slim-bookworm AS model
-WORKDIR /build
-COPY docker/download_model.py ./download_model.py
-RUN python download_model.py /model
-
 FROM --platform=linux/amd64 python:3.11-slim-bookworm AS ocr
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PADDLE_PDX_CACHE_HOME=/app/models/.paddlex
+    PADDLE_PDX_CACHE_HOME=/app/.cache/paddlex
 WORKDIR /app
 
 RUN apt-get update \
@@ -43,14 +38,13 @@ RUN apt-get update \
 COPY obelens-ocr/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY obelens-ocr/ocr ./ocr
-COPY --from=model /model ./models/pretrained/en_PP-OCRv5_mobile_rec
 
-# The model cache under /app/models is written at runtime, so hand ownership over.
+# Inference caches are writable; Compose mounts the supplied model read-only.
 RUN chown -R app:app /app
 USER app
 
 EXPOSE 8765
-CMD ["python", "-m", "ocr.server", "--host", "0.0.0.0", "--port", "8765", "--model-dir", "/app/models/pretrained/en_PP-OCRv5_mobile_rec"]
+CMD ["python", "-m", "ocr.server", "--host", "0.0.0.0", "--port", "8765", "--model-dir", "/app/models/recognition"]
 
 FROM --platform=linux/amd64 nginx:stable-alpine AS web
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

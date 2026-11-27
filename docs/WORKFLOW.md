@@ -1,7 +1,7 @@
-# OBELens X workflow and extension points
+# OBE-Lens workflow and extension points
 
 The existing Android OpenCV/ONNX scanner and desktop/web Python OCR service remain
-in place. Model training and recognition algorithms are unchanged. The application
+in place. OCR uses supplied local models for inference only. The application
 now surrounds scanning with account permissions, course administration, exam
 configuration, persistent results, corrections, attainment and report export.
 
@@ -131,8 +131,10 @@ For a future compatible ONNX model, bundle its asset and set
 `assets/ocr_model/inference.onnx`. Include the new asset in `pubspec.yaml`. If the
 model's tensor format or decoding changes, implement a new recognizer adapter
 behind the existing OCR contract and validate Android compatibility. No UI or
-attainment rewrite is needed. This change does not train models, retain student
-crops for training, or automatically learn from edits.
+attainment rewrite is needed. Desktop/web recognition loads a compatible local
+PaddleOCR inference model from `obelens-ocr/models/recognition/`, or a directory
+passed with `python -m ocr.server --model-dir /path/to/model`. Model weights are
+never downloaded automatically. Teacher corrections update results only.
 
 ## Persistence and calculation rules
 

@@ -147,7 +147,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           size: 30, color: theme.colorScheme.primary),
                       const SizedBox(width: 10),
                       Text(
-                        'obelens',
+                        'OBE-Lens',
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -304,7 +304,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Text(
                           _isSignUp
                               ? 'Already have an account?'
-                              : 'New to obelens?',
+                              : 'New to OBE-Lens?',
                           overflow: TextOverflow.ellipsis,
                           style:
                               theme.textTheme.bodySmall?.copyWith(color: muted),

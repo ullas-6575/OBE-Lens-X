@@ -109,9 +109,9 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--confidence-threshold', type=float, default=.8)
-    parser.add_argument('--model-dir', default=str(Path(__file__).resolve().parents[1] / 'models/pretrained/en_PP-OCRv5_mobile_rec'))
+    parser.add_argument('--model-dir', default=RecognitionConfig().model_dir)
     args = parser.parse_args()
-    os.environ.setdefault('PADDLE_PDX_CACHE_HOME', str(Path(__file__).resolve().parents[1] / 'models/.paddlex'))
+    os.environ.setdefault('PADDLE_PDX_CACHE_HOME', str(Path(__file__).resolve().parents[1] / '.cache/paddlex'))
     token = os.environ.get('OBELENS_OCR_TOKEN', '')
     if not token:
         print('Warning: OBELENS_OCR_TOKEN is not set; /ocr endpoints accept unauthenticated '

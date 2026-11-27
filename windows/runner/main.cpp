@@ -10,7 +10,7 @@
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   if (wcsstr(command_line, L"com.obelens.app://auth-callback") != nullptr) {
-    HWND existing = FindWindow(L"FLUTTER_RUNNER_WIN32_WINDOW", L"obelens");
+    HWND existing = FindWindow(L"FLUTTER_RUNNER_WIN32_WINDOW", L"OBE-Lens");
     if (existing != nullptr) {
       SendAppLink(existing);
       ShowWindow(existing, SW_RESTORE);
@@ -38,7 +38,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"obelens", origin, size)) {
+  if (!window.Create(L"OBE-Lens", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

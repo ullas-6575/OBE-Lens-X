@@ -1,11 +1,11 @@
 {
-    "name": "obelens",
-    "short_name": "obelens",
+    "name": "OBE-Lens",
+    "short_name": "OBE-Lens",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#2563EB",
+    "theme_color": "#2563EB",
+    "description": "Scan marksheets, review marks and track outcome attainment.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

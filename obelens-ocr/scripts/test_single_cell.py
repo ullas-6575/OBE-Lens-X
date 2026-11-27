@@ -10,7 +10,7 @@ def main():
     parser.add_argument('image')
     parser.add_argument('--max-mark', type=int)
     parser.add_argument('--confidence-threshold', type=float, default=0.8)
-    parser.add_argument('--model-dir')
+    parser.add_argument('--model-dir', default=RecognitionConfig().model_dir)
     parser.add_argument('--device', default='cpu')
     args = parser.parse_args()
     recognizer = MarkRecognizer(RecognitionConfig(model_dir=args.model_dir, device=args.device,

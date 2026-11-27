@@ -36,10 +36,12 @@ class RegistrationTests(unittest.TestCase):
                  patch.dict('os.environ', {'XDG_DATA_HOME': str(root / 'data')}), \
                  patch.object(links.subprocess, 'run') as run:
                 links.main()
-            entry = (root / 'data/applications/obelens.desktop').read_text()
+            entry = (root / 'data/applications/com.example.my_app.desktop').read_text()
+            self.assertIn('Name=OBE-Lens\n', entry)
+            self.assertIn(f'Icon={executable.parent}/data/obe_lens_icon.png\n', entry)
             self.assertIn(f'Exec="{executable}" %u', entry)
             self.assertIn('MimeType=x-scheme-handler/com.obelens.app;', entry)
-            run.assert_called_once_with(['xdg-mime', 'default', 'obelens.desktop',
+            run.assert_called_once_with(['xdg-mime', 'default', 'com.example.my_app.desktop',
                                          'x-scheme-handler/com.obelens.app'], check=True)
 
 

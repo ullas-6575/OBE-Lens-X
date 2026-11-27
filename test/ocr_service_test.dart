@@ -176,7 +176,7 @@ void main() {
     }
   });
 
-  test('Real Python server and pretrained model return all 28 cells', () async {
+  test('Real Python server and supplied local model return all 28 cells', () async {
     final root = Directory.current.path;
     final process = await Process.start(
         '$root/.venv/bin/python', ['-m', 'ocr.server', '--port', '0'],
