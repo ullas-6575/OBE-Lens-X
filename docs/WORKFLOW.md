@@ -16,9 +16,11 @@ configuration, persistent results, corrections, attainment and report export.
    and [`20261110120000_limit_course_outcomes_and_disable_result_edits.sql`](../supabase/migrations/20261110120000_limit_course_outcomes_and_disable_result_edits.sql)
    and [`20261120120000_registration_status.sql`](../supabase/migrations/20261120120000_registration_status.sql)
    and [`20261120130000_repair_registration_review_access.sql`](../supabase/migrations/20261120130000_repair_registration_review_access.sql)
+   and [`20261127185331_confirm_question_group_replacement.sql`](../supabase/migrations/20261127185331_confirm_question_group_replacement.sql)
+   and [`20261127190719_teacher_selected_three_questions.sql`](../supabase/migrations/20261127190719_teacher_selected_three_questions.sql)
    to the intended Supabase project. The migrations are additive: existing
    results keep `exam_id = null` and remain separate from course results.
-   The last migration requires existing exam mappings to use CO1–CO4; update
+   The CO restriction migration requires existing exam mappings to use CO1–CO4; update
    mappings that use other outcomes before applying it. Do not reapply the
    original migration to a database where it already ran.
 2. Create the first administrator using a trusted Supabase administrator account:
@@ -136,6 +138,27 @@ PaddleOCR inference model from `obelens-ocr/models/recognition/`, or a directory
 passed with `python -m ocr.server --model-dir /path/to/model`. Model weights are
 never downloaded automatically. Teacher corrections update results only.
 
+## Three questions per group
+
+For a group with four configured questions, a numeric mark in any part (including
+`0`) identifies an answered question. When at most three are answered, the app
+counts those questions automatically. When all four are answered, the teacher
+selects exactly three at submission. All four questions' raw marks are retained.
+The result details also allow changing this choice, with the usual replacement
+confirmation and revision check. Only four-answer groups show this control.
+
+The overall percentage and GPA use the maxima of the counted questions, with
+missing answer slots worth zero. For unequal question maxima, missing slots use
+the largest remaining question maxima. CO attainment uses the mappings and
+maxima of the counted questions; an outcome not assessed by any counted question
+remains N/A. It never assigns an unanswered optional question to a CO by guessing.
+Groups configured with fewer than four questions count their configured questions.
+
+Existing saved groups infer the choice from their raw marks when at most three
+questions were answered. A four-answer legacy group without a saved choice is
+flagged for teacher selection; its GPA and attainment remain pending until reviewed.
+Apply `20261127190719_teacher_selected_three_questions.sql` before deploying this flow.
+
 ## Persistence and calculation rules
 
 - An offering is unique by course, academic year and term. Exams and assignments
@@ -144,12 +167,17 @@ never downloaded automatically. Teacher corrections update results only.
   while preserving reporting access.
 - RLS restricts teachers to approved accounts and assigned offerings. Teachers
   can read only courses with an offering assigned to their account. Admin
-  authorization uses signed app metadata. The save RPC uses invoker security,
-  so it remains subject to RLS. The only definer function is the private Auth
-  trigger that creates an unapproved profile; clients cannot execute it.
-- A result is unique by exam, roll number and group. Saving uses a submission UUID;
-  an identical retry returns the saved result. Saved results are read-only, and
-  a different scan cannot overwrite an existing group.
+  authorization uses signed app metadata. The exposed save RPC uses invoker
+  security and calls a private definer function that explicitly checks account
+  approval and offering access before reading or writing results. Direct updates
+  to result rows remain revoked. The private Auth trigger creates profiles.
+- A result is unique by exam, roll number and group. Both assigned teachers can
+  upload different groups for the same roll; the worksheet combines them into
+  one student row. An existing group returns its saved marks for a **Replace marks**
+  or **Keep previous** decision. Replacement checks the confirmed row ID and revision;
+  if either changed, the app asks again. Only that group is replaced. Identical
+  retries do not add rows or revisions. Apply
+  `20261127185331_confirm_question_group_replacement.sql` before deploying the app.
 - A full grid is saved atomically. The database checks all 28 cells, integer
   marks, question mappings, configured maxima and archive status, then computes
   the total. The exam revision check rejects saves made against stale exam

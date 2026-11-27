@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:my_app/services/auth_service.dart';
+import 'package:my_app/services/result_service.dart';
 import 'package:my_app/workflow/models.dart';
 import 'package:my_app/workflow/repository.dart';
 
@@ -129,18 +130,66 @@ class FakeWorkflowRepository implements WorkflowRepository {
       resultRows.where((r) => r['exam_id'] == examId).toList();
   @override
   Future<void> saveMarks(ScanContext context, String submissionId, String group,
-      Map<String, Map<String, String>> marks) async {
+      Map<String, Map<String, String>> marks,
+      {Json? previous, List<String>? selectedQuestions}) async {
     submissions.add(submissionId);
     if (failSave) throw StateError('Network unavailable');
-    resultRows.add({
-      'id': 'result-${resultRows.length + 1}',
+    final selected =
+        context.exam.countedQuestions(group, selectedQuestions, marks);
+    if (selected == null) {
+      throw const FormatException('Select exactly three questions to count.');
+    }
+    final total = marks.entries
+        .where((q) => selected.contains(q.key))
+        .map((q) => q.value)
+        .expand((parts) => parts.values)
+        .fold<double>(0, (sum, mark) => sum + (double.tryParse(mark) ?? 0));
+    final index = resultRows.indexWhere((row) =>
+        row['exam_id'] == context.exam.id &&
+        row['roll_no'] == context.rollNo &&
+        row['table_type'] == group);
+    if (index >= 0) {
+      final saved = resultRows[index];
+      if (savedResultMatches(saved,
+              rollNo: context.rollNo,
+              tableType: group,
+              marks: marks,
+              grandTotal: total) &&
+          context.exam
+                  .countedQuestions(
+                      group, saved['selected_questions'], saved['marks'] as Map)
+                  ?.join(',') ==
+              selected.join(',') &&
+          (saved['submission_id'] == submissionId ||
+              previous?['id'] == saved['id'] &&
+                  saved['revision'] == (previous!['revision'] as int) + 1)) {
+        return;
+      }
+      if (previous?['id'] != saved['id'] ||
+          previous?['revision'] != saved['revision']) {
+        throw ResultConflict(Json.from(saved));
+      }
+    }
+    final row = {
+      if (index >= 0) ...resultRows[index],
+      'id': index < 0
+          ? 'result-${resultRows.length + 1}'
+          : resultRows[index]['id'],
+      'submission_id':
+          index < 0 ? submissionId : resultRows[index]['submission_id'],
       'exam_id': context.exam.id,
       'roll_no': context.rollNo,
       'table_type': group,
+      'selected_questions': selected,
       'marks': marks,
-      'grand_total': 5,
-      'revision': 1
-    });
+      'grand_total': total,
+      'revision': index < 0 ? 1 : (resultRows[index]['revision'] as int) + 1
+    };
+    if (index < 0) {
+      resultRows.add(row);
+    } else {
+      resultRows[index] = row;
+    }
   }
 }
 

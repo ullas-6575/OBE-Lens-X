@@ -14,6 +14,9 @@ List<List<String>> resultsWorksheet(Exam exam, List<Json> results) {
       return questionOrder != 0 ? questionOrder : a.part.compareTo(b.part);
     });
   final columns = mappings.map((q) => '${q.question}${q.part}').toList();
+  final choices = exam.requiredGroups
+      .where((group) => exam.questionNumbers(group).length > 3)
+      .toList();
   final byRoll = <String, Map<String, Json>>{};
   for (final result in results) {
     if (result['exam_id'] != exam.id) continue;
@@ -32,7 +35,15 @@ List<List<String>> resultsWorksheet(Exam exam, List<Json> results) {
       return order == 0 ? a.compareTo(b) : order;
     });
   final rows = <List<String>>[
-    ['Roll', ...columns],
+    [
+      'Roll',
+      ...columns,
+      if (choices.isNotEmpty) ...[
+        for (final group in choices) 'Counted Q$group',
+        'Counted total',
+        'Maximum'
+      ]
+    ],
   ];
 
   for (final roll in rolls) {
@@ -44,6 +55,31 @@ List<List<String>> resultsWorksheet(Exam exam, List<Json> results) {
       final questionMarks = marks is Map ? marks[mapping.question] : null;
       final mark = questionMarks is Map ? questionMarks[mapping.part] : null;
       values.add(mark?.toString() ?? 'N/A');
+    }
+    if (choices.isNotEmpty) {
+      for (final group in choices) {
+        final result = groups[group];
+        values.add(result == null
+            ? 'Missing group'
+            : exam
+                    .countedQuestions(group, result['selected_questions'],
+                        result['marks'] as Map)
+                    ?.map((q) => 'Q$q')
+                    .join(', ') ??
+                'Selection required');
+      }
+      final complete = exam.requiredGroups.every((group) =>
+          groups[group] != null && exam.countedTotal(groups[group]!) != null);
+      values.add(complete
+          ? groups.values
+              .fold<double>(0, (sum, row) => sum + exam.countedTotal(row)!)
+              .toStringAsFixed(0)
+          : 'Pending');
+      values.add(complete
+          ? groups.values
+              .fold<int>(0, (sum, row) => sum + exam.countedMaximum(row)!)
+              .toString()
+          : 'Pending');
     }
     rows.add(values);
   }

@@ -153,6 +153,78 @@ class Exam {
       requiredGroups: List<String>.from(j['required_groups']),
       policy: AttainmentPolicy.fromJson(Json.from(j['policy'])));
 
+  List<String> questionNumbers(String group) => questions
+      .where((q) => q.group == group)
+      .map((q) => q.question)
+      .toSet()
+      .toList()
+    ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+
+  int questionsToCount(String group) {
+    final count = questionNumbers(group).length;
+    return count > 3 ? 3 : count;
+  }
+
+  List<String> answeredQuestions(String group, Map marks) =>
+      questionNumbers(group)
+          .where((q) =>
+              marks[q] is Map &&
+              (marks[q] as Map).values.any(
+                  (mark) => MarksTableData.isNumericMark(mark?.toString())))
+          .toList();
+
+  /// Ask for a choice only when all four questions have numeric marks.
+  List<String>? countedQuestions(String group, Object? selected, [Map? marks]) {
+    final available = questionNumbers(group);
+    final automatic = available.length <= 3
+        ? available
+        : marks == null
+            ? null
+            : answeredQuestions(group, marks);
+    if (automatic != null && automatic.length <= 3) {
+      return automatic;
+    }
+    if (selected is! List || selected.any((q) => q is! String)) return null;
+    final chosen = selected.cast<String>().toSet();
+    if (chosen.length != questionsToCount(group) ||
+        chosen.length != selected.length ||
+        !chosen.every(available.contains)) return null;
+    return available.where(chosen.contains).toList();
+  }
+
+  double? countedTotal(Json result) {
+    final selected = countedQuestions(result['table_type'],
+        result['selected_questions'], result['marks'] as Map);
+    if (selected == null) return null;
+    final marks = result['marks'] as Map;
+    return questions.where((q) => selected.contains(q.question)).fold<double>(
+        0,
+        (total, q) =>
+            total +
+            MarksTableData.parseMarkValue(
+                (marks[q.question] as Map?)?[q.part]?.toString()));
+  }
+
+  int? countedMaximum(Json result) {
+    final selected = countedQuestions(result['table_type'],
+        result['selected_questions'], result['marks'] as Map);
+    if (selected == null) return null;
+    final total = questions
+        .where((q) => selected.contains(q.question))
+        .fold<int>(0, (total, q) => total + q.maxMark);
+    final remaining = questionNumbers(result['table_type'])
+        .where((q) => !selected.contains(q))
+        .map((number) => questions
+            .where((q) => q.question == number)
+            .fold<int>(0, (sum, q) => sum + q.maxMark))
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    return total +
+        remaining
+            .take(questionsToCount(result['table_type']) - selected.length)
+            .fold<int>(0, (sum, maximum) => sum + maximum);
+  }
+
   String? validate(Course course) {
     final policyError = policy.validate();
     if (policyError != null) return policyError;

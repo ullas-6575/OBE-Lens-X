@@ -5,9 +5,13 @@ import '../models/marks_table_data.dart';
 class MarksGridTable extends StatelessWidget {
   final Map<String, Map<String, String>> marks;
   final bool showTotals;
+  final Set<String>? countedQuestions;
 
   const MarksGridTable(
-      {super.key, required this.marks, this.showTotals = false});
+      {super.key,
+      required this.marks,
+      this.showTotals = false,
+      this.countedQuestions});
 
   static const _parts = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
 
@@ -26,12 +30,17 @@ class MarksGridTable extends StatelessWidget {
     };
     final partTotals = {
       for (final part in _parts)
-        part: questions.fold<double>(
-            0,
-            (total, question) =>
-                total + MarksTableData.parseMarkValue(marks[question]?[part])),
+        part: questions
+            .where((q) => countedQuestions?.contains(q) ?? true)
+            .fold<double>(
+                0,
+                (total, question) =>
+                    total +
+                    MarksTableData.parseMarkValue(marks[question]?[part])),
     };
-    final grandTotal = questionTotals.values.fold<double>(0, (a, b) => a + b);
+    final grandTotal = questionTotals.entries
+        .where((q) => countedQuestions?.contains(q.key) ?? true)
+        .fold<double>(0, (total, q) => total + q.value);
 
     Widget cell(String value,
             {bool header = false,
@@ -73,7 +82,9 @@ class MarksGridTable extends StatelessWidget {
               ]),
               for (final question in questions)
                 TableRow(children: [
-                  cell('Q$question', rowHeader: true),
+                  cell(
+                      'Q$question${countedQuestions != null && !countedQuestions!.contains(question) ? ' (not counted)' : ''}',
+                      rowHeader: true),
                   for (final part in _parts)
                     cell(marks[question]?[part] ?? 'N/A'),
                   if (showTotals)
@@ -82,7 +93,8 @@ class MarksGridTable extends StatelessWidget {
                 ]),
               if (showTotals)
                 TableRow(children: [
-                  cell('Total', total: true),
+                  cell(countedQuestions == null ? 'Total' : 'Counted total',
+                      total: true),
                   for (final part in _parts)
                     cell(partTotals[part]!.toStringAsFixed(0), total: true),
                   cell(grandTotal.toStringAsFixed(0),

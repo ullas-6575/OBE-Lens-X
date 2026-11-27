@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'auth_service.dart';
+import 'result_service.dart';
 import '../workflow/models.dart';
 import '../workflow/repository.dart';
 
@@ -206,41 +207,71 @@ class LocalPreviewWorkflowRepository implements WorkflowRepository {
       .toList(growable: false);
 
   @override
-  Future<void> saveMarks(
-    ScanContext context,
-    String submissionId,
-    String group,
-    Map<String, Map<String, String>> marks,
-  ) async {
+  Future<void> saveMarks(ScanContext context, String submissionId, String group,
+      Map<String, Map<String, String>> marks,
+      {Json? previous, List<String>? selectedQuestions}) async {
     final error = context.validateMarks(group, marks);
     if (error != null) throw FormatException(error);
+    final selected =
+        context.exam.countedQuestions(group, selectedQuestions, marks);
+    if (selected == null) {
+      throw const FormatException('Select exactly three questions to count.');
+    }
 
-    final alreadySaved = _results.any((result) =>
+    final index = _results.indexWhere((result) =>
         result['exam_id'] == context.exam.id &&
         result['roll_no'] == context.rollNo &&
         result['table_type'] == group);
-    if (alreadySaved) {
-      throw StateError('This group already has a saved result.');
-    }
-
     var total = 0;
-    for (final column in marks.values) {
+    for (final column in marks.entries
+        .where((q) => selected.contains(q.key))
+        .map((q) => q.value)) {
       for (final mark in column.values) {
         total += int.tryParse(mark) ?? 0;
       }
     }
+    if (index >= 0) {
+      final saved = _results[index];
+      final matches = savedResultMatches(saved,
+          rollNo: context.rollNo,
+          tableType: group,
+          marks: marks,
+          grandTotal: total.toDouble());
+      if (matches &&
+          context.exam
+                  .countedQuestions(
+                      group, saved['selected_questions'], saved['marks'] as Map)
+                  ?.join(',') ==
+              selected.join(',') &&
+          (saved['submission_id'] == submissionId ||
+              previous?['id'] == saved['id'] &&
+                  saved['revision'] == (previous!['revision'] as int) + 1)) {
+        return;
+      }
+      if (previous?['id'] != saved['id'] ||
+          previous?['revision'] != saved['revision']) {
+        throw ResultConflict(Map<String, dynamic>.from(saved));
+      }
+    }
     final row = <String, dynamic>{
-      'id': 'preview-result-${_nextId++}',
+      'id': index < 0 ? 'preview-result-${_nextId++}' : _results[index]['id'],
+      'submission_id':
+          index < 0 ? submissionId : _results[index]['submission_id'],
       'exam_id': context.exam.id,
       'roll_no': context.rollNo,
       'table_type': group,
+      'selected_questions': selected,
       'marks': {
         for (final entry in marks.entries)
           entry.key: Map<String, String>.from(entry.value),
       },
       'grand_total': total,
-      'revision': 1,
+      'revision': index < 0 ? 1 : (_results[index]['revision'] as int) + 1,
     };
-    _results.add(row);
+    if (index < 0) {
+      _results.add(row);
+    } else {
+      _results[index] = row;
+    }
   }
 }
