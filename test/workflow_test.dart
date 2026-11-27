@@ -15,8 +15,7 @@ class FakeExporter implements ReportExporter {
   int calls = 0;
   @override
   Future<void> export(
-      BuildContext context, String title, List<List<String>> rows,
-      {required bool pdf}) async {
+      BuildContext context, String title, List<List<String>> rows) async {
     calls++;
   }
 }
@@ -43,10 +42,10 @@ void main() {
         RegistrationStatus.approved);
     expect(RegistrationStatus.of({'status': 'rejected'}),
         RegistrationStatus.rejected);
-    expect(RegistrationStatus.of({'approved': true}),
-        RegistrationStatus.approved);
-    expect(RegistrationStatus.of({'approved': false}),
-        RegistrationStatus.pending);
+    expect(
+        RegistrationStatus.of({'approved': true}), RegistrationStatus.approved);
+    expect(
+        RegistrationStatus.of({'approved': false}), RegistrationStatus.pending);
   });
 
   test('Course outcomes are limited to CO1-CO4', () {
@@ -92,9 +91,24 @@ void main() {
     final maxMark = find.descendant(
         of: find.byType(DataTable).first, matching: find.byType(TextField));
     await tester.enterText(maxMark.first, '10');
+    for (final entry in {
+      'Student score threshold (%)': '70',
+      'L0 upper cutoff (%) — inclusive': '45',
+    }.entries) {
+      final field = find.widgetWithText(TextFormField, entry.key);
+      await tester.scrollUntilVisible(field, 200,
+          scrollable: find
+              .descendant(
+                  of: find.byType(ListView).last,
+                  matching: find.byType(Scrollable))
+              .first);
+      await tester.enterText(field, entry.value);
+    }
     await tapVisible(tester, 'Save exam configuration');
     expect(repo.examRows.single.name, 'Final');
     expect(repo.examRows.single.questions.single.co, 'CO1');
+    expect(repo.examRows.single.policy.scoreThreshold, 70);
+    expect(repo.examRows.single.policy.levelBounds, [45, 65, 75, 85]);
     expect(find.text('Final'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -272,17 +286,17 @@ void main() {
     await tester.pumpAndSettle();
     repo.resultRows.single['revision'] = 2;
     data.cellMarks['1']!['a'] = '8';
-    await tester.ensureVisible(find.text('Export PDF'));
+    await tester.ensureVisible(find.text('Export to Excel'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Export PDF'));
+    await tester.tap(find.text('Export to Excel'));
     await tester.pumpAndSettle();
     expect(exporter.calls, 0);
     expect(find.textContaining('Marks or mappings changed.'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Export PDF'));
+    await tester.ensureVisible(find.text('Export to Excel'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Export PDF'));
+    await tester.tap(find.text('Export to Excel'));
     await tester.pumpAndSettle();
     expect(exporter.calls, 1);
   });

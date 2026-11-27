@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'attainment.dart';
 import 'report_export.dart';
 import 'ui.dart';
+import '../widgets/worksheet_grid.dart';
 
 class ReportSnapshot {
   final String fingerprint, title;
@@ -31,28 +33,34 @@ Future<ReportSnapshot> loadExamReport(WorkflowRepository repository,
     ['Exam', exam.name],
     ['Exam revision', '${exam.revision}'],
     ['Score threshold', '${exam.policy.scoreThreshold}%'],
-    ['CO target', '${exam.policy.targetPercent}%'],
-    ['Required groups', exam.requiredGroups.join(', ')],
+    if (exam.policy.validate() == null)
+      ['Attainment levels', exam.policy.levelDescription],
     [
-      'Students / incomplete excluded',
-      '${report.students} / ${report.excluded}'
+      'Student CO values',
+      '1 = threshold met; 0 = below threshold; N/A = CO not assessed or script excluded'
     ],
-    ['CO', 'Eligible', 'Attained', 'Attainment %', 'Target met'],
+    ['Required groups', exam.requiredGroups.join(', ')],
+    ['Students / excluded scripts', '${report.students} / ${report.excluded}'],
+    ['Roll no', ...CourseOutcome.codes],
+    for (final student in report.studentRows)
+      [
+        student.rollNo,
+        for (final co in CourseOutcome.codes)
+          student.outcomes[co]?.toString() ?? 'N/A',
+      ],
+    ['CO', 'Eligible', 'Attained', 'Attainment %', 'Level'],
     for (final score in report.outcomes)
       [
         score.code,
         '${score.eligible}',
         '${score.attained}',
         score.percent?.toStringAsFixed(2) ?? 'N/A',
-        score.percent == null
-            ? 'N/A'
-            : score.percent! >= exam.policy.targetPercent
-                ? 'Yes'
-                : 'No'
+        exam.policy.level(score.percent),
       ],
     ['Course PO contribution', 'Equal mean of linked CO percentages'],
+    ['PO', 'Contribution %', 'Level'],
     for (final po in report.poContribution.entries)
-      [po.key, po.value.toStringAsFixed(2)],
+      [po.key, po.value.toStringAsFixed(2), exam.policy.level(po.value)],
   ];
   final fingerprint = jsonEncode([
     course.code,
@@ -94,7 +102,7 @@ class _ReportPageState extends State<ReportPage> {
       });
   @override
   Widget build(BuildContext context) =>
-      WorkflowPage(title: 'Report preview', children: [
+      WorkflowPage(title: 'Attainment worksheet', children: [
         LoadView(
             future: _report,
             retry: _reload,
@@ -127,7 +135,7 @@ class ReportPreview extends StatefulWidget {
 class _ReportPreviewState extends State<ReportPreview> {
   bool _busy = false;
 
-  Future<void> _export(bool pdf) async {
+  Future<void> _export() async {
     setState(() => _busy = true);
     try {
       final latest = await widget.load();
@@ -139,14 +147,10 @@ class _ReportPreviewState extends State<ReportPreview> {
         widget.onStale();
         return;
       }
-      await widget.exporter.export(
-          context,
-          latest.title,
-          [
-            ...latest.rows,
-            ['Generated at (UTC)', DateTime.now().toUtc().toIso8601String()]
-          ],
-          pdf: pdf);
+      await widget.exporter.export(context, latest.title, [
+        ...latest.rows,
+        ['Generated at (UTC)', DateTime.now().toUtc().toIso8601String()]
+      ]);
     } catch (e) {
       if (mounted) showError(context, e);
     } finally {
@@ -158,6 +162,7 @@ class _ReportPreviewState extends State<ReportPreview> {
       row.length >= 2 &&
       ((row[0] == 'CO' && row[1] == 'Eligible') ||
           (row[0] == 'PO' && row[1] == 'Contribution %') ||
+          (row[0] == 'Roll no' && row[1] == 'CO1') ||
           (row[0] == 'Course' && row[1] == 'PO'));
 
   Widget _sectionTitle(String title) => Padding(
@@ -169,105 +174,6 @@ class _ReportPreviewState extends State<ReportPreview> {
                 fontWeight: FontWeight.w700)),
       );
 
-  Widget _worksheetGrid(List<List<String>> rows,
-      {bool headerRow = false, bool keyValue = false}) {
-    final columnCount = rows.fold<int>(
-        0, (count, row) => row.length > count ? row.length : count);
-    final dataWidths = keyValue
-        ? [220.0, 360.0]
-        : switch (columnCount) {
-            5 => [96.0, 104.0, 104.0, 150.0, 126.0],
-            4 => [150.0, 100.0, 150.0, 120.0],
-            3 => [110.0, 170.0, 170.0],
-            _ => [140.0, 220.0],
-          };
-    final widths = <double>[42, ...dataWidths.take(columnCount)];
-    final dataRows = <List<String>>[
-      [
-        '',
-        for (var index = 0; index < columnCount; index++)
-          String.fromCharCode(65 + index),
-      ],
-      ...rows.asMap().entries.map((entry) => [
-            '${entry.key + 1}',
-            ...entry.value,
-            ...List.filled(columnCount - entry.value.length, ''),
-          ]),
-    ];
-    final border = Border.all(color: const Color(0xFFD8E0DA), width: 0.7);
-
-    return LayoutBuilder(builder: (context, constraints) {
-      final naturalWidth = widths.fold<double>(0, (sum, width) => sum + width);
-      final sheetWidth = naturalWidth > constraints.maxWidth
-          ? naturalWidth
-          : constraints.maxWidth;
-      return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-              width: sheetWidth,
-              child: Table(
-                  border: TableBorder(
-                      top: border.top,
-                      bottom: border.bottom,
-                      left: border.left,
-                      right: border.right,
-                      horizontalInside: border.top,
-                      verticalInside: border.left),
-                  columnWidths: {
-                    for (var index = 0; index < widths.length; index++)
-                      index: FixedColumnWidth(widths[index]),
-                  },
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: [
-                    for (var rowIndex = 0;
-                        rowIndex < dataRows.length;
-                        rowIndex++)
-                      TableRow(children: [
-                        for (var columnIndex = 0;
-                            columnIndex < dataRows[rowIndex].length;
-                            columnIndex++) ...[
-                          Builder(builder: (context) {
-                            final value = dataRows[rowIndex][columnIndex];
-                            final baseColor = rowIndex == 0
-                                ? const Color(0xFFE8EEE9)
-                                : columnIndex == 0
-                                    ? const Color(0xFFF0F3F1)
-                                    : headerRow && rowIndex == 1
-                                        ? const Color(0xFFE4F0E8)
-                                        : (rowIndex.isEven
-                                            ? const Color(0xFFFAFCFA)
-                                            : Colors.white);
-                            return Tooltip(
-                                message: value,
-                                child: Container(
-                                    constraints:
-                                        const BoxConstraints(minHeight: 38),
-                                    color: baseColor,
-                                    alignment: columnIndex <= 1 ||
-                                            keyValue ||
-                                            (headerRow && rowIndex == 1)
-                                        ? Alignment.centerLeft
-                                        : Alignment.centerRight,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 9),
-                                    child: Text(value,
-                                        style: TextStyle(
-                                            color: const Color(0xFF26352C),
-                                            fontSize: rowIndex == 0 ? 11 : 13,
-                                            fontWeight: rowIndex == 0 ||
-                                                    (headerRow &&
-                                                        rowIndex == 1) ||
-                                                    (keyValue &&
-                                                        columnIndex == 0)
-                                                ? FontWeight.w600
-                                                : FontWeight.normal))));
-                          }),
-                        ],
-                      ]),
-                  ])));
-    });
-  }
-
   List<Widget> _worksheetContents() {
     final rows =
         widget.report.rows.where((row) => row.first != 'Scope').toList();
@@ -276,13 +182,14 @@ class _ReportPreviewState extends State<ReportPreview> {
     var index = 0;
 
     if (firstHeader < 0) {
-      contents.add(_worksheetGrid(rows, keyValue: true));
+      contents.add(WorksheetGrid(rows: rows, keyValue: true));
       return contents;
     }
     if (firstHeader > 0) {
       contents
         ..add(_sectionTitle('Report details'))
-        ..add(_worksheetGrid(rows.take(firstHeader).toList(), keyValue: true));
+        ..add(WorksheetGrid(
+            rows: rows.take(firstHeader).toList(), keyValue: true));
       index = firstHeader;
     }
 
@@ -292,18 +199,20 @@ class _ReportPreviewState extends State<ReportPreview> {
         contents.add(_sectionTitle(row.first));
         index++;
         final poRows = <List<String>>[
-          ['PO', 'Contribution %'],
+          if (index >= rows.length || !_isTableHeader(rows[index]))
+            ['PO', 'Contribution %'],
         ];
         while (index < rows.length) {
           poRows.add(rows[index++]);
         }
-        contents.add(_worksheetGrid(poRows, headerRow: true));
+        contents.add(WorksheetGrid(rows: poRows, headerRow: true));
         continue;
       }
       if (_isTableHeader(row)) {
         final title = switch (row.first) {
           'CO' => 'Course outcome attainment',
           'PO' => 'Program PO contribution',
+          'Roll no' => 'Student CO attainment',
           _ => 'Course breakdown',
         };
         contents.add(_sectionTitle(title));
@@ -314,10 +223,10 @@ class _ReportPreviewState extends State<ReportPreview> {
             rows[index].first != 'Course PO contribution') {
           tableRows.add(rows[index++]);
         }
-        contents.add(_worksheetGrid(tableRows, headerRow: true));
+        contents.add(WorksheetGrid(rows: tableRows, headerRow: true));
         continue;
       }
-      contents.add(_worksheetGrid([row], keyValue: true));
+      contents.add(WorksheetGrid(rows: [row], keyValue: true));
       index++;
     }
     return contents;
@@ -369,18 +278,13 @@ class _ReportPreviewState extends State<ReportPreview> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: _worksheetContents())),
                 ])),
-        Wrap(spacing: 12, children: [
-          FilledButton(
-              onPressed: !widget.report.exportable || _busy
-                  ? null
-                  : () => _export(true),
-              child: const Text('Export PDF')),
-          OutlinedButton(
-              onPressed: !widget.report.exportable || _busy
-                  ? null
-                  : () => _export(false),
-              child: const Text('Export spreadsheet (CSV)')),
-        ]),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+              onPressed: !widget.report.exportable || _busy ? null : _export,
+              icon: const Icon(Icons.table_view),
+              label: Text(_busy ? 'Exporting…' : 'Export to Excel')),
+        ),
       ]);
 }
 
@@ -404,7 +308,7 @@ class _ProgramReportPageState extends State<ProgramReportPage> {
 
   Future<ReportSnapshot> _load() async {
     final courses = await widget.repository.courses();
-    final poCourses = <String, List<double>>{};
+    final poCourses = SplayTreeMap<String, List<double>>(comparePoCodes);
     final issues = <String>[];
     final fingerprints = <Object>[];
     final detailRows = <List<String>>[];
@@ -415,7 +319,7 @@ class _ProgramReportPageState extends State<ProgramReportPage> {
       for (final offering in offerings) {
         final exams = await widget.repository.exams(offering.id);
         if (exams.isEmpty) issues.add('${course.code}: no exams configured.');
-        final coursePos = <String, List<double>>{};
+        final coursePos = SplayTreeMap<String, List<double>>(comparePoCodes);
         for (final exam in exams) {
           final snapshot =
               await loadExamReport(widget.repository, course, offering, exam);

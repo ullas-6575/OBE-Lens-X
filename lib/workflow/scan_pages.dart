@@ -7,9 +7,9 @@ import '../widgets/marks_grid_table.dart';
 import 'models.dart';
 import 'repository.dart';
 import 'ui.dart';
-import 'report_page.dart';
 import 'results_excel_export.dart';
 import 'grading.dart';
+import '../widgets/worksheet_grid.dart';
 
 class StudentScanPage extends StatefulWidget {
   final WorkflowRepository repository;
@@ -259,17 +259,28 @@ class _ExamResultsPageState extends State<ExamResultsPage> {
         _results = widget.repository.results(widget.exam.id);
       });
 
+  @override
+  void didUpdateWidget(covariant ExamResultsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.exam.id != widget.exam.id ||
+        oldWidget.repository != widget.repository) {
+      _results = widget.repository.results(widget.exam.id);
+    }
+  }
+
   Future<void> _export(List<Json> rows) async {
     if (rows.isEmpty || _exporting) return;
     setState(() => _exporting = true);
     try {
-      await shareResultsExcel(context, widget.exam.name, widget.exam, rows);
+      await shareResultsExcel(context,
+          '${widget.course.code}-${widget.exam.name}', widget.exam, rows);
     } catch (error) {
       if (mounted) showError(context, error);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
+
   @override
   Widget build(BuildContext context) =>
       WorkflowPage(title: 'All results · ${widget.exam.name}', actions: [
@@ -279,32 +290,23 @@ class _ExamResultsPageState extends State<ExamResultsPage> {
             icon: const Icon(Icons.refresh))
       ], children: [
         Text('${widget.course.code} · ${widget.offering.label}'),
-        ActionTile(
-            'Calculate attainment',
-            'Check completeness and preview CO / PO reports',
-            Icons.analytics,
-            () => openPage(
-                context,
-                ReportPage(
-                    repository: widget.repository,
-                    course: widget.course,
-                    offering: widget.offering,
-                    exam: widget.exam))),
         LoadView(
             future: _results,
             retry: _reload,
             builder: (rows) {
+              final worksheet = resultsWorksheet(widget.exam, rows);
               final students = <String, List<Json>>{};
-              for (final row in rows) {
+              for (final row
+                  in rows.where((r) => r['exam_id'] == widget.exam.id)) {
                 students.putIfAbsent(row['roll_no'], () => []).add(row);
               }
-              final rolls = students.keys.toList()..sort();
               return Column(children: [
-                if (rows.isEmpty) const Text('No saved results for this exam.'),
+                if (students.isEmpty)
+                  const Text('No saved results for this exam.'),
                 Align(
                     alignment: Alignment.centerRight,
                     child: FilledButton.icon(
-                      onPressed: rows.isEmpty || _exporting
+                      onPressed: students.isEmpty || _exporting
                           ? null
                           : () => _export(rows),
                       icon: _exporting
@@ -315,20 +317,21 @@ class _ExamResultsPageState extends State<ExamResultsPage> {
                           : const Icon(Icons.table_view),
                       label: const Text('Export to Excel'),
                     )),
-                for (final roll in rolls)
-                  ActionTile(
-                      roll,
-                      '${students[roll]!.length}/${widget.exam.requiredGroups.length} groups · Total ${students[roll]!.fold<double>(0, (v, r) => v + (r['grand_total'] as num).toDouble()).toStringAsFixed(0)}',
-                      Icons.person, () async {
-                    await openPage(
-                        context,
-                        StudentResultPage(
-                            repository: widget.repository,
-                            scan: ScanContext(widget.course, widget.offering,
-                                widget.exam, roll),
-                            results: students[roll]!));
-                    if (mounted) _reload();
-                  }),
+                const SizedBox(height: 12),
+                WorksheetGrid(
+                    rows: worksheet,
+                    headerRow: true,
+                    onRowTap: (index) async {
+                      final roll = worksheet[index + 1].first;
+                      await openPage(
+                          context,
+                          StudentResultPage(
+                              repository: widget.repository,
+                              scan: ScanContext(widget.course, widget.offering,
+                                  widget.exam, roll),
+                              results: students[roll]!));
+                      if (mounted) _reload();
+                    }),
               ]);
             })
       ]);
