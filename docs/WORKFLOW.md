@@ -1,7 +1,7 @@
-# OBELens X workflow and extension points
+# OBE-Lens workflow and extension points
 
 The existing Android OpenCV/ONNX scanner and desktop/web Python OCR service remain
-in place. Model training and recognition algorithms are unchanged. The application
+in place. OCR uses supplied local models for inference only. The application
 now surrounds scanning with account permissions, course administration, exam
 configuration, persistent results, corrections, attainment and report export.
 
@@ -131,8 +131,10 @@ For a future compatible ONNX model, bundle its asset and set
 `assets/ocr_model/inference.onnx`. Include the new asset in `pubspec.yaml`. If the
 model's tensor format or decoding changes, implement a new recognizer adapter
 behind the existing OCR contract and validate Android compatibility. No UI or
-attainment rewrite is needed. This change does not train models, retain student
-crops for training, or automatically learn from edits.
+attainment rewrite is needed. Desktop/web recognition loads a compatible local
+PaddleOCR inference model from `obelens-ocr/models/recognition/`, or a directory
+passed with `python -m ocr.server --model-dir /path/to/model`. Model weights are
+never downloaded automatically. Teacher corrections update results only.
 
 ## Persistence and calculation rules
 
@@ -163,10 +165,11 @@ crops for training, or automatically learn from edits.
   `N/A` marks count as zero against the configured maximum. A question part with
   maximum zero is not mapped or included in attainment. A student with no
   possible marks for a CO is ineligible for that CO.
-- For each CO, a student attains it when earned/possible marks meet the score
-  threshold. CO attainment is attained students / eligible students. The target
-  percentage determines whether the CO target is met. Defaults are 50% and 60%,
-  respectively, and are editable per exam; confirm institutional policy.
+- For each CO, a student receives 1 when earned/possible marks meet the score
+  threshold, otherwise 0. CO attainment is attained students / eligible students.
+  The default student threshold is 50%, editable per exam. The editable level
+  cutoffs default to L0: 0–55%, L1: >55–65%, L2: >65–75%, L3: >75–85%,
+  and L4: >85%. Unassessed COs and excluded scripts display N/A.
 - Checkbox links carry no implicit weights. Course PO contribution is the equal
   mean of eligible linked CO percentages. Program aggregation uses equal exam
   contributions within each course and equal course contributions per PO in the
@@ -176,10 +179,16 @@ crops for training, or automatically learn from edits.
   snapshots. Before export the app fetches inputs again and rejects a stale
   preview. Reports include thresholds, denominators and a generation timestamp.
   Results are paginated to avoid Supabase's default row limit truncating reports.
-- PDF and UTF-8 CSV are exported through the platform share/download flow on
-  Android and web. The CSV opens in spreadsheet applications and neutralizes
-  formula-like text. Native Linux file sharing is not supported by `share_plus`;
-  use the web build on Linux. The bundled FreeSans font includes its license.
+- All results shows one row per student with Roll and mapped question-part
+  columns, scoped to the selected course and exam. Selecting a roll opens its
+  details. The attainment worksheet shows Roll no and CO1–CO4, followed by CO
+  counts/percentages/levels and numerically sorted PO contributions.
+- Excel (.xls) is the only report export format. Attainment exports put Report
+  details, Student CO attainment, CO attainment, and PO contributions on separate
+  tabs in one workbook. Program exports separate details, PO contributions, and
+  course breakdown. Linux and Windows use a Save As dialog; Android uses its
+  share sheet. Workbook cells preserve leading zeroes and store formula-like
+  text literally.
 
 ## Verification
 
@@ -190,6 +199,28 @@ flutter build web --release --no-pub --pwa-strategy=none
 flutter build apk --debug --no-pub
 bash scripts/test_workflow_db.sh  # Requires PostgreSQL server/client tools
 ```
+
+To rebuild the latest native releases from the same source:
+
+```sh
+flutter pub get
+flutter build apk --release --no-pub
+flutter build linux --release --no-pub     # Run on Linux
+flutter build windows --release --no-pub   # Run on Windows with Visual Studio C++ tools
+```
+
+The Android APK is `build/app/outputs/flutter-apk/app-release.apk`. Distribute the
+complete `build/linux/x64/release/bundle/` directory for Linux and the complete
+`build/windows/x64/runner/Release/` directory for Windows, including their DLLs,
+libraries and data. Android release builds currently use the project's existing
+debug signing configuration; these are local installation builds, not store releases.
+
+The CI workflow builds all three platforms from the same tested commit and
+uploads separate artifacts named with that commit SHA. Windows builds run on
+Windows runners. Trigger CI by pushing to main, opening a PR to main, or using
+the workflow's manual Run workflow action after the changes are committed and
+pushed. A source update does not update an already installed app; install the
+new APK or replace the complete desktop bundle.
 
 `test/attainment_test.dart` covers policy calculations and exports.
 `test/workflow_test.dart` covers restored sessions, role/pending routing, navigation,
@@ -225,5 +256,5 @@ The script registers `com.obelens.app` using a Linux desktop entry or the Window
 current-user registry; administrator access is not required.
 Allow `com.obelens.app://auth-callback/` in Supabase Auth redirect URLs.
 Test a real password-reset email both with the app closed and already running.
-Linux exports now show a Save dialog for PDF, CSV, and Excel files.
+Linux and Windows Excel exports show a Save As dialog.
 

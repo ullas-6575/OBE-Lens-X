@@ -8,7 +8,9 @@ Future<void> exportFile(BuildContext context, Uint8List bytes,
     required String mimeType,
     required String title}) async {
   final file = XFile.fromData(bytes, mimeType: mimeType, name: name);
-  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) {
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.linux ||
+          defaultTargetPlatform == TargetPlatform.windows)) {
     final location = await FileSelectorPlatform.instance
         .getSaveLocation(options: SaveDialogOptions(suggestedName: name));
     if (location == null) return;

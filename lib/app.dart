@@ -24,7 +24,7 @@ class MarkSheetApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'obelens',
+      title: 'OBE-Lens',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       home: SessionGate(

@@ -1,13 +1,15 @@
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 from ocr import MarkRecognizer
+from ocr.config import RecognitionConfig
 from ocr.empty_cell import is_empty_cell
 from ocr.preprocessing import prepare_cell
 from ocr.table_processor import ExtractedCell, process_cells
-from scripts.test_dataset import evaluate
 
 
 class Backend:
@@ -20,7 +22,35 @@ class Backend:
         return [{'rec_text': self.text, 'rec_score': self.score}]
 
 
-class BaselineTests(unittest.TestCase):
+class RecognitionTests(unittest.TestCase):
+    def test_missing_local_model_never_initializes_paddle(self):
+        factory = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'inference.json').write_text('{}')
+            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(TextRecognition=factory)}):
+                for model_dir in (None, str(root / 'missing'), str(root)):
+                    with self.subTest(model_dir=model_dir):
+                        recognizer = MarkRecognizer(RecognitionConfig(model_dir=model_dir))
+                        with self.assertRaises((ValueError, FileNotFoundError)):
+                            recognizer.predict_mark(Image.new('RGB', (20, 20), 'black'))
+        factory.assert_not_called()
+
+    def test_supplied_model_path_is_used_and_recognizer_is_reused(self):
+        backend = Backend()
+        factory = Mock(return_value=backend)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            for name in ('inference.json', 'inference.pdiparams', 'inference.yml'):
+                (root / name).touch()
+            with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(TextRecognition=factory)}):
+                recognizer = MarkRecognizer(RecognitionConfig(model_dir=str(root)))
+                for _ in range(2):
+                    self.assertEqual(recognizer.predict_mark(Image.new('RGB', (20, 20), 'black'))['value'], 15)
+            factory.assert_called_once_with(model_name='en_PP-OCRv5_mobile_rec',
+                                            model_dir=str(root), device='cpu')
+            self.assertEqual(backend.calls, 2)
+
     def test_raw_predictions_validation_and_review(self):
         for text, score, valid, review in [('15', .9, True, False), ('15', .3, True, True),
                                          ('I5', .99, False, True), ('21', .99, False, True),
@@ -103,16 +133,6 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(payload['cellMarks']['1']['b'], 'N/A')
         self.assertTrue(payload['needsReview'])
         self.assertFalse(payload['isVerified'])
-
-    def test_dataset_metrics(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            Image.new('RGB', (20, 20), 'black').save(root / 'ink.png')
-            Image.new('RGB', (20, 20), 'white').save(root / 'blank.png')
-            (root / 'labels.csv').write_text('image_path,label\nink.png,15\nblank.png,\n')
-            report = evaluate(root / 'labels.csv', MarkRecognizer(backend=Backend()))
-            self.assertEqual(report['exact_accuracy'], 1)
-            self.assertEqual(report['review_rate'], 0)
 
 
 if __name__ == '__main__':

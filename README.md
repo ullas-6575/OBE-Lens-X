@@ -1,10 +1,10 @@
-# OBE Lens
+# OBE-Lens
 
 The complete course-to-report workflow and deployment steps are documented in
-[OBELens X workflow](docs/WORKFLOW.md). Apply the new academic-workflow migration
+[OBE-Lens workflow](docs/WORKFLOW.md). Apply the new academic-workflow migration
 before using the dashboards. Existing scanning and unassigned results are preserved.
 
-Flutter marks-table capture, four-corner crop/rotation, pretrained handwriting OCR,
+Flutter marks-table capture, four-corner crop/rotation, local-model handwriting OCR,
 and teacher verification.
 
 The [Python OCR service](obelens-ocr/README.md) corrects perspective, extracts the
@@ -21,7 +21,10 @@ the marks they want to change and review the table as a whole.
 ## Run on a PC with Docker
 
 Install Docker Desktop (Windows/macOS, using Linux containers) or Docker Engine
-with the Compose plugin (Linux). From the repository root, run:
+with the Compose plugin (Linux). Supply a compatible PaddleOCR inference model in
+`obelens-ocr/models/recognition/` with `inference.json`, `inference.pdiparams`, and
+`inference.yml`. The existing local model, if present, is ready to use.
+From the repository root, run:
 
 ```bash
 docker compose up --build -d
@@ -34,11 +37,10 @@ unassigned scanning flow. Uploading a photograph works on
 desktop browsers; the camera button uses the browser's file/capture picker and
 may offer file selection instead of a live camera on a PC.
 
-The first build downloads Flutter, Python dependencies, and the official
-[`en_PP-OCRv5_mobile_rec` model](https://www.paddleocr.ai/main/en/version3.x/module_usage/text_recognition.html).
-You do not need Flutter, Python, Android tooling,
-or the ignored model directories installed on the host. Subsequent starts reuse
-the built images. Allow several minutes and several GB of disk space for the
+The first build downloads Flutter and Python dependencies. Compose mounts your
+local inference model read-only; model weights are never downloaded automatically.
+You do not need Flutter, Python, or Android tooling installed on the host.
+Subsequent starts reuse the built images. Allow several minutes and several GB of disk space for the
 first build; allocating at least 4 GB RAM to Docker is recommended.
 
 Login and saved results still use the Supabase project in `lib/main.dart` and
@@ -72,7 +74,8 @@ For just the OCR API (for an existing native Flutter client):
 
 ```bash
 docker build --platform linux/amd64 --target ocr -t obelens-ocr .
-docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 obelens-ocr
+docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 \
+  -v "$PWD/obelens-ocr/models/recognition:/app/models/recognition:ro" obelens-ocr
 ```
 
 Check http://localhost:8765/health for the API-only container, or
@@ -82,6 +85,12 @@ Compose, run `python3 docker/smoke_test.py` with any host Python 3 installation
 (optional; Python is not needed to run the app).
 
 ## Run with local development tools
+
+Android uses `assets/ocr_model/inference.onnx` and
+`assets/ocr_model/ppocrv5_en_dict.txt`. Replace these with your compatible model
+and dictionary. See [model configuration](docs/WORKFLOW.md) for a different asset path.
+Desktop/web OCR uses your local PaddleOCR model in `obelens-ocr/models/recognition/`;
+pass `--model-dir /absolute/path/to/model` to use another directory.
 
 Start the OCR server from the repository root:
 
@@ -123,10 +132,6 @@ viewing results. This original migration is the base OCR result store. The addit
 adds courses, offerings, assignments, exam mappings, revisions and access rules.
 Follow the [workflow setup guide](docs/WORKFLOW.md) for administrator access and
 password-reset redirects.
-
-The [bundled handwriting evaluation](obelens-ocr/evaluation/README.md) reads 7/8
-clearly labeled numeric marks correctly and leaves 17/17 blank cells unresolved.
-One sheet is a development check, not a deployment accuracy estimate.
 
 Saved verified results are immutable: the workflow migration removes the update
 policy and the `update (marks, grand_total)` grant, and `save_verified_marks`

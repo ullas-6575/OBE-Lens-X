@@ -1,12 +1,13 @@
-"""Baseline settings; no training or custom neural network."""
+"""Settings for inference with a supplied local PaddleOCR model."""
 from dataclasses import dataclass
 import math
+from pathlib import Path
 
 
 @dataclass(frozen=True)
 class RecognitionConfig:
     model_name: str = 'en_PP-OCRv5_mobile_rec'
-    model_dir: str | None = None
+    model_dir: str | None = str(Path(__file__).resolve().parents[1] / 'models/recognition')
     device: str = 'cpu'
     confidence_threshold: float = 0.8
 

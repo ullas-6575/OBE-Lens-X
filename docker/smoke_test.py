@@ -12,7 +12,7 @@ import urllib.request
 def main():
     base = (sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8080').rstrip('/')
     with urllib.request.urlopen(base + '/', timeout=15) as response:
-        assert b'<title>obelens</title>' in response.read(), 'Flutter UI not served'
+        assert b'<title>OBE-Lens</title>' in response.read(), 'Flutter UI not served'
     with urllib.request.urlopen(base + '/health', timeout=15) as response:
         assert json.load(response)['status'] == 'ok'
 

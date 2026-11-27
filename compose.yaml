@@ -5,6 +5,8 @@ services:
     build:
       context: .
       target: ocr
+    volumes:
+      - ./obelens-ocr/models/recognition:/app/models/recognition:ro
     restart: unless-stopped
     expose:
       - "8765"

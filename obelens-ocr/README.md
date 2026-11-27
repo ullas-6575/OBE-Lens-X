@@ -1,18 +1,18 @@
-# OBE Lens OCR
+# OBE-Lens OCR
 
 Table photograph → automatic corner suggestion → Flutter crop/rotation preview →
 explicit corners → perspective correction → grid extraction → 28 cropped cells →
-`en_PP-OCRv5_mobile_rec` → advisory integer validation and confidence flags → Flutter review.
-No training or fine-tuning is performed.
+your supplied local recognition model → advisory integer validation and confidence flags → Flutter review.
+The app only runs inference. It has no datasets, training, fine-tuning, or automatic model downloads.
 
 ## Setup and server
 
 For a browser UI and OCR service with one command on a PC, use
 `docker compose up --build -d` from the repository root and open
 http://localhost:8080. See the [Docker setup](../README.md#run-on-a-pc-with-docker)
-for requirements, commands, and hardware limits. The Docker build downloads the
-official model automatically; the local setup below still uses your virtual
-environment and downloaded model directory.
+for requirements, commands, and hardware limits. Supply your compatible local
+PaddleOCR model in `obelens-ocr/models/recognition/` before scanning. Compose mounts
+this directory read-only. Restart the OCR service after replacing the model.
 
 From the repository root, reuse the existing OCR environment:
 
@@ -24,12 +24,12 @@ python -m ocr.server
 ```
 
 The verified versions are PaddleOCR 3.7.0, CPU PaddlePaddle 3.3.1 and OpenCV 4.12.
-The downloaded English model is at `models/pretrained/en_PP-OCRv5_mobile_rec`,
-ignored by Git. Supply a different local model path with `--model-dir` if needed.
-On a fresh checkout, download the official inference model listed in the
-[PaddleOCR documentation](https://www.paddleocr.ai/main/en/version3.x/pipeline_usage/OCR.html)
-and extract it there, or use the single-cell script once without `--model-dir`
-to populate Paddle's cache and point the server to that model directory.
+The model directory is `obelens-ocr/models/recognition/` relative to the repository
+root, ignored by Git. Provide `inference.json`, `inference.pdiparams`, and
+`inference.yml` for a compatible `en_PP-OCRv5_mobile_rec` recognition model.
+Use `python -m ocr.server --model-dir /absolute/path/to/model` for another location.
+Missing model files cause an explicit error; the app does not fetch replacement weights.
+Android separately uses the ONNX model and dictionary in `assets/ocr_model/`.
 
 The service defaults to localhost:8765. It uses one reusable recognizer, serves
 requests on threads and caps concurrent inference at two so `/health` stays
@@ -147,33 +147,18 @@ maximum, and never converts letters to guessed digits or blank marks to zero.
 The API accepts a `max_mark` for the table; the current Flutter UI does not supply
 rubric maxima. The teacher can submit the entire table without editing or acknowledging any flagged cell.
 
-## Scripts and data
+## Try your model on an image
 
 Run commands from `obelens-ocr`:
 
 ```bash
 python -m scripts.test_single_cell path/to/cell.png --max-mark 20
 python -m scripts.test_table ../assets/sample_marksheet.png
-python -m scripts.evaluate_sample
-python -m scripts.test_dataset data/baseline/labels.csv --max-mark 20
 ```
 
-`test_table` saves the result, rectified table and cell PNGs under `outputs/`.
-`evaluate_sample` reproduces the [bundled handwriting report](evaluation/README.md).
-Dataset manifests use paths relative to their CSV:
-
-```csv
-image_path,label,group
-cell_5.png,5,sheet_01
-cell_15.png,15,sheet_02
-blank.png,,sheet_02
-```
-
-Exact-string accuracy preserves leading zeros. Blank references are empty labels,
-not zero. Dataset reports contain raw predictions, confusions, review rate,
-accepted accuracy and timings including first model initialization. Collect more
-writer/sheet-separated labels before interpreting these as deployment accuracy.
-Reserved train/val/test/corrections directories remain available for later work.
+Both commands use `models/recognition/` by default and accept `--model-dir`.
+`test_table` saves JSON, a rectified table and cell PNGs under `outputs/` for
+manual inspection. The API processes uploads in memory and does not save crops.
 
 ## API contract
 

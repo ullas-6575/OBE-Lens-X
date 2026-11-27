@@ -1,4 +1,4 @@
-OBE Lens X - local run requirements
+OBE-Lens - local run requirements
 ===================================
 
 Everything needed to run the project on your own machine, plus the exact
@@ -53,14 +53,18 @@ A. Run with Docker (recommended)
   open http://localhost:8080          # http://localhost:PORT if OBELENS_PORT set
   docker compose down
 
-The first build downloads Flutter, Python wheels and the official
-en_PP-OCRv5_mobile_rec model, and takes several minutes and a few GB.
+Before starting, place your compatible PaddleOCR inference files
+(inference.json, inference.pdiparams and inference.yml) in
+obelens-ocr/models/recognition/. Compose mounts them read-only.
+The first build downloads Flutter and Python wheels, and takes several minutes
+and a few GB. Model weights are supplied locally and are never auto-downloaded.
 Health: http://localhost:8080/health (through nginx) or the ocr container's
 http://127.0.0.1:8765/health for the API-only image.
 
 OCR API image only:
   docker build --platform linux/amd64 --target ocr -t obelens-ocr .
-  docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 obelens-ocr
+  docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 \
+    -v "$PWD/obelens-ocr/models/recognition:/app/models/recognition:ro" obelens-ocr
 
 Optional end-to-end smoke test (needs host Python 3, no extra packages):
   python docker/smoke_test.py
@@ -74,11 +78,13 @@ B. Run with local tools
    macOS/Linux:  source .venv/bin/activate
    pip install -r obelens-ocr/requirements.txt
 
-   # Download the official inference model once (writes 3 files, ~20 MB):
-   python docker/download_model.py obelens-ocr/models/pretrained/en_PP-OCRv5_mobile_rec
+   # Supply your local PaddleOCR inference files in:
+   # obelens-ocr/models/recognition/
+   # Required: inference.json, inference.pdiparams and inference.yml
 
    cd obelens-ocr
    python -m ocr.server            # http://127.0.0.1:8765, GET /health
+   # Or: python -m ocr.server --model-dir /absolute/path/to/your/model
 
    For a physical phone on the same network:
    python -m ocr.server --host 0.0.0.0
@@ -119,8 +125,8 @@ B. Run with local tools
 
 6. Troubleshooting
 ------------------
-- "OCR inference failed": the model directory is missing or incomplete; rerun
-  the download step or rebuild the Docker image.
+- "OCR inference failed": supply all three compatible inference files in
+  obelens-ocr/models/recognition/ (or your --model-dir), then restart the service.
 - Browser cannot reach the API: start the OCR service, or use Compose where
   nginx proxies /ocr/ to it on the same origin.
 - Login fails: confirm the Supabase migrations were applied and that email

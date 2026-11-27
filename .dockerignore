@@ -1,4 +1,4 @@
-# Allow only build inputs; never send local datasets, credentials, caches or APKs.
+# Allow only build inputs; never send credentials, local model directories, caches or APKs.
 **
 !Dockerfile
 !compose.yaml

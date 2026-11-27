@@ -1,4 +1,7 @@
 """Recognition-only PaddleOCR adapter, loaded once and reused across cells."""
+import os
+from pathlib import Path
+
 from .config import RecognitionConfig
 from .preprocessing import prepare_cell
 from .empty_cell import is_empty_cell
@@ -12,13 +15,20 @@ class MarkRecognizer:
 
     def _model(self):
         if self._backend is None:
+            if not self.config.model_dir:
+                raise ValueError('Provide a local OCR model directory; automatic model downloads are disabled')
+            model_dir = Path(self.config.model_dir).expanduser().resolve()
+            for name in ('inference.json', 'inference.pdiparams', 'inference.yml'):
+                if not (model_dir / name).is_file():
+                    raise FileNotFoundError(f'Local OCR model is missing {model_dir / name}; supply the complete inference model')
+            os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')
             try:
                 from paddleocr import TextRecognition
             except ImportError as exc:
                 raise RuntimeError('Install obelens-ocr/requirements.txt in the OCR virtual environment') from exc
             self._backend = TextRecognition(
                 model_name=self.config.model_name,
-                model_dir=self.config.model_dir,
+                model_dir=str(model_dir),
                 device=self.config.device,
             )
         return self._backend
