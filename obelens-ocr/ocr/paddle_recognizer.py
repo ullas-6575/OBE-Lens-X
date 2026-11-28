@@ -1,4 +1,4 @@
-"""Recognition-only PaddleOCR adapter, loaded once and reused across cells."""
+"""PaddleOCR adapter using the same fine-tuned ONNX export as Android."""
 import os
 from pathlib import Path
 
@@ -18,7 +18,7 @@ class MarkRecognizer:
             if not self.config.model_dir:
                 raise ValueError('Provide a local OCR model directory; automatic model downloads are disabled')
             model_dir = Path(self.config.model_dir).expanduser().resolve()
-            for name in ('inference.json', 'inference.pdiparams', 'inference.yml'):
+            for name in ('inference.onnx', 'inference.yml'):
                 if not (model_dir / name).is_file():
                     raise FileNotFoundError(f'Local OCR model is missing {model_dir / name}; supply the complete inference model')
             os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')
@@ -27,9 +27,12 @@ class MarkRecognizer:
             except ImportError as exc:
                 raise RuntimeError('Install obelens-ocr/requirements.txt in the OCR virtual environment') from exc
             self._backend = TextRecognition(
-                model_name=self.config.model_name,
+                # PaddleOCR uses the architecture name to select its adapter.
+                model_name='en_PP-OCRv5_mobile_rec',
                 model_dir=str(model_dir),
                 device=self.config.device,
+                engine='onnxruntime',
+                engine_config={'intra_op_num_threads': 2},
             )
         return self._backend
 

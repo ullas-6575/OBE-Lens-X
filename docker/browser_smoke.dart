@@ -1,20 +1,20 @@
 // Browser-only diagnostic entrypoint, excluded from the production web target.
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:my_app/services/ocr_service.dart';
 import 'package:my_app/widgets/selected_image.dart';
 import 'package:web/web.dart' as web;
+import '../test/support/marksheet_fixture.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MaterialApp(
       home: Scaffold(body: Center(child: Text('Checking browser OCR…')))));
   try {
-    final sample = await rootBundle.load('assets/sample_marksheet.png');
+    final sample = await marksheetPng();
     final file =
-        XFile.fromData(sample.buffer.asUint8List(), mimeType: 'image/png');
+        XFile.fromData(sample, mimeType: 'image/png');
     if (!file.path.startsWith('blob:') || !selectedImageExists(file.path)) {
       throw StateError('Expected a browser blob URL');
     }

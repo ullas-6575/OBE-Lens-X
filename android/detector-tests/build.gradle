@@ -21,8 +21,7 @@ tasks.register('generateFixtures', Exec) {
     workingDir repo
     commandLine providers.gradleProperty('python').getOrElse(new File(repo, '.venv/bin/python').path),
         'obelens-ocr/scripts/generate_detection_fixtures.py', fixtures.path
-    inputs.files(new File(repo, 'obelens-ocr/scripts/generate_detection_fixtures.py'),
-        new File(repo, 'assets/sample_marksheet.png'))
+    inputs.file new File(repo, 'obelens-ocr/scripts/generate_detection_fixtures.py')
     inputs.dir new File(repo, 'obelens-ocr/ocr')
     outputs.dir fixtures
 }

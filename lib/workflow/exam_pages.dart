@@ -166,7 +166,7 @@ class _ExamEditorState extends State<ExamEditor> {
         _maxMarkControllers.putIfAbsent(
             key,
             () => TextEditingController(
-                text: existing?.maxMark.toString() ?? '0'));
+                text: existing?.maxMark.toString() ?? ''));
         _cellOutcomes[key] = existing?.co ?? CourseOutcome.codes.first;
       }
     }
@@ -196,8 +196,8 @@ class _ExamEditorState extends State<ExamEditor> {
       for (final question in _questionsInGroup(group)) {
         for (final part in 'abcdefg'.split('')) {
           final key = _cellKey(question, part);
-          final text = _maxMarkControllers[key]?.text.trim() ?? '0';
-          final maximum = int.tryParse(text);
+          final text = _maxMarkControllers[key]?.text.trim() ?? '';
+          final maximum = text.isEmpty ? 0 : int.tryParse(text);
           if (maximum == null || maximum < 0 || maximum > 99) {
             showError(context,
                 'Q$question$part must have a maximum from 0 to 99. Use 0 when that part does not exist.');
@@ -228,6 +228,8 @@ class _ExamEditorState extends State<ExamEditor> {
             maxLength: 2,
             decoration: const InputDecoration(
                 labelText: 'Max mark',
+                hintText: '0',
+                floatingLabelBehavior: FloatingLabelBehavior.always,
                 isDense: true,
                 counterText: '',
                 contentPadding:
@@ -335,7 +337,7 @@ class _ExamEditorState extends State<ExamEditor> {
             enabled: !_disabled,
             decoration: const InputDecoration(labelText: 'Exam name')),
         const Text(
-            'Select a question group to configure its questions. Enter the maximum mark and course outcome for each part a–g. Leave the maximum at 0 when that part does not exist.'),
+            'Select a question group to configure its questions. Enter the maximum mark and course outcome for each part a–g. Leave the maximum empty or enter 0 when that part does not exist.'),
         Wrap(spacing: 12, children: [
           for (final group in ['1-4', '5-8'])
             FilterChip(

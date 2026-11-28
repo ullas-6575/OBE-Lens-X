@@ -5,7 +5,6 @@ import threading
 import unittest
 from http.client import HTTPConnection
 from http.server import HTTPServer
-from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image
@@ -13,9 +12,6 @@ from ocr import MarkRecognizer
 from ocr.cell_extractor import detect_corners, extract_cells, ExtractionError
 from ocr.full_table import process_table
 from ocr.server import make_handler
-
-SAMPLE = Path(__file__).resolve().parents[2] / 'assets/sample_marksheet.png'
-
 
 def grid():
     image = np.full((850,650,3),255,np.uint8)
@@ -33,12 +29,11 @@ class Backend:
 
 
 class ExtractionTests(unittest.TestCase):
-    def test_sample_and_original_coordinates(self):
-        cells = extract_cells(SAMPLE).cells
+    def test_grid_and_original_coordinates(self):
+        cells = extract_cells(grid()).cells
         self.assertEqual(len(cells),28)
         self.assertEqual((cells[0].question,cells[0].part),('1','a'))
-        self.assertTrue(95 <= cells[0].bounds[0] <= 125)
-        self.assertTrue(85 <= cells[0].bounds[1] <= 110)
+        np.testing.assert_allclose(cells[0].bounds, [150,150,250,230], atol=2)
 
     def test_perspective_and_mapping(self):
         source = np.float32([[50,50],[550,50],[550,790],[50,790]])
@@ -127,7 +122,7 @@ class ExtractionTests(unittest.TestCase):
         np.testing.assert_allclose(points, [[50,50],[550,50],[550,790],[50,790]], atol=5)
 
     def test_payload_crop_and_review(self):
-        payload = process_table(SAMPLE,MarkRecognizer(backend=Backend()))
+        payload = process_table(grid(),MarkRecognizer(backend=Backend()))
         self.assertFalse(payload['isVerified'])
         cell = payload['cellResults']['1']['a']
         self.assertTrue(cell['needs_review'])
@@ -149,7 +144,8 @@ class ApiTests(unittest.TestCase):
             finally:
                 connection.close()
         try:
-            status,payload = post({'image_base64':base64.b64encode(SAMPLE.read_bytes()).decode(),'table_type':'5-8'})
+            _, encoded = cv2.imencode('.png', grid())
+            status,payload = post({'image_base64':base64.b64encode(encoded).decode(),'table_type':'5-8'})
             self.assertEqual(status,200)
             self.assertEqual(payload['questions'],['5','6','7','8'])
             self.assertEqual(sum(len(v) for v in payload['cellResults'].values()),28)

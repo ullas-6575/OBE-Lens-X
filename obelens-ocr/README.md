@@ -10,9 +10,11 @@ The app only runs inference. It has no datasets, training, fine-tuning, or autom
 For a browser UI and OCR service with one command on a PC, use
 `docker compose up --build -d` from the repository root and open
 http://localhost:8080. See the [Docker setup](../README.md#run-on-a-pc-with-docker)
-for requirements, commands, and hardware limits. Supply your compatible local
-PaddleOCR model in `obelens-ocr/models/recognition/` before scanning. Compose mounts
-this directory read-only. Restart the OCR service after replacing the model.
+for requirements, commands, and hardware limits. The fine-tuned
+`obelens` model replaces the bundled asset at `assets/ocr_model/obelens.onnx`.
+The service keeps an identical copy in `obelens-ocr/models/recognition/`, which
+Compose mounts read-only; the standalone image includes it too.
+Restart the OCR service after replacing the model.
 
 From the repository root, reuse the existing OCR environment:
 
@@ -23,13 +25,19 @@ cd obelens-ocr
 python -m ocr.server
 ```
 
-The verified versions are PaddleOCR 3.7.0, CPU PaddlePaddle 3.3.1 and OpenCV 4.12.
-The model directory is `obelens-ocr/models/recognition/` relative to the repository
-root, ignored by Git. Provide `inference.json`, `inference.pdiparams`, and
-`inference.yml` for a compatible `en_PP-OCRv5_mobile_rec` recognition model.
+The verified versions are PaddleOCR 3.7.0, CPU PaddlePaddle 3.3.1,
+ONNX Runtime 1.30.0 and OpenCV 4.12. The model directory is `obelens-ocr/models/recognition/`
+relative to the repository root. The adapter explicitly selects PaddleOCR's
+`onnxruntime` engine and loads `inference.onnx` plus `inference.yml` from the
+fine-tuned export. Paddle graph/parameter files are not needed.
 Use `python -m ocr.server --model-dir /absolute/path/to/model` for another location.
 Missing model files cause an explicit error; the app does not fetch replacement weights.
-Android separately uses the ONNX model and dictionary in `assets/ocr_model/`.
+Android uses the same ONNX bytes as `assets/ocr_model/obelens.onnx` and the
+matching dictionary. The service reports the model name `obelens` in `/health`.
+The ONNX model allows only English digits (`0–9`) and the CTC blank at its output.
+Its fine-tuned weights and digit confidence scores are preserved; other classes
+are suppressed after softmax without changing dictionary indices.
+See [model provenance](../assets/ocr_model/README.md).
 
 The service defaults to localhost:8765. It uses one reusable recognizer, serves
 requests on threads and caps concurrent inference at two so `/health` stays
@@ -68,12 +76,13 @@ Late detection responses never replace a selection the user has already changed.
 An OCR failure offers **Adjust Table Corners**, preserving the selection.
 
 The complete reconstructed table is ready immediately after scanning. Clearly
-empty cells show `N/A` without warnings. Only one- or two-digit numeric readings
+empty cells show `N/A` without warnings. Only one- or two-digit English readings
 enter the table, preserving leading zeros. Low-confidence numbers and numbers
-above a configured maximum receive an amber warning. Letters, mixed text such
-as `o7`, symbols, and unrecognized handwriting display `N/A` with a warning;
-their raw OCR text remains available in the edit dialog and API cell details.
-Letters are never guessed or removed to manufacture a numeric mark.
+above a configured maximum receive an amber warning. The default model emits
+only `0–9`; unrecognized handwriting and readings longer than two digits display
+`N/A` with a warning. Raw OCR predictions remain available in the edit dialog and
+API cell details. Restricting output does not guarantee that letters in an image
+cannot be misread as digits; original confidence scores still drive review flags.
 High-confidence valid numbers show just the mark, without a tick.
 
 Teacher review applies to the table as a whole. Click only marks you want to
@@ -153,7 +162,7 @@ Run commands from `obelens-ocr`:
 
 ```bash
 python -m scripts.test_single_cell path/to/cell.png --max-mark 20
-python -m scripts.test_table ../assets/sample_marksheet.png
+python -m scripts.test_table path/to/your-table.png
 ```
 
 Both commands use `models/recognition/` by default and accept `--model-dir`.
@@ -209,7 +218,7 @@ flutter test test/ocr_service_test.dart --dart-define=OCR_INTEGRATION=true
 ```
 
 The optional integration test starts a temporary Python server, uploads the
-bundled sheet through detection and manual-selection OCR using the actual Dart
+generated synthetic sheet through detection and manual-selection OCR using the actual Dart
 service, and checks the real model response.
 Tests cover perspective mapping, broken-grid rejection, crop evidence, API error
 handling, byte uploads, response parsing, optional flags, unobstructed submission, edits and blanks.

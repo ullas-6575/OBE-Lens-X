@@ -63,8 +63,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/sample_marksheet.png
-    - assets/ocr_model/inference.onnx
+    - assets/ocr_model/obelens.onnx
     - assets/ocr_model/ppocrv5_en_dict.txt
     - assets/fonts/FreeSans.ttf
 

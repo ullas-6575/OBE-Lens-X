@@ -1,5 +1,6 @@
 paddleocr==3.7.0
 paddlepaddle==3.3.1
+onnxruntime==1.30.0
 # 13.x contains fixes for the image-decoder memory-safety advisories that affect
 # every older release (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501).
 Pillow>=13,<14

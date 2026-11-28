@@ -10,8 +10,9 @@ import 'package:my_app/screens/image_source_screen.dart';
 import 'package:my_app/screens/table_crop_screen.dart';
 import 'package:my_app/widgets/table_crop_overlay.dart';
 import 'package:my_app/services/ocr_service.dart';
+import 'support/marksheet_fixture.dart';
 
-const sample = 'assets/sample_marksheet.png';
+late String sample;
 
 class RecordingService implements BaseOcrService, TableDetectionService {
   final Future<TableSelection?> detection;
@@ -48,10 +49,10 @@ class RecordingService implements BaseOcrService, TableDetectionService {
 }
 
 Future<void> openCrop(WidgetTester tester, RecordingService service,
-    {String imagePath = sample}) async {
+    {String? imagePath}) async {
   await tester.pumpWidget(MaterialApp(
       home: TableCropScreen(
-          imagePath: imagePath, tableType: '5-8', ocrService: service)));
+          imagePath: imagePath ?? sample, tableType: '5-8', ocrService: service)));
   await waitForDetection(tester, service);
   expect(find.byType(TableCropOverlay), findsOneWidget);
   await tester.ensureVisible(find.byKey(const ValueKey('crop-continue')));
@@ -76,6 +77,15 @@ TableSelection currentSelection(WidgetTester tester) =>
     tester.widget<TableCropOverlay>(find.byType(TableCropOverlay)).selection;
 
 void main() {
+  late Directory fixtures;
+  setUpAll(() async {
+    fixtures = await Directory.systemTemp.createTemp('crop-fixtures-');
+    sample = (await File('${fixtures.path}/table.png')
+            .writeAsBytes(await marksheetPng()))
+        .path;
+  });
+  tearDownAll(() => fixtures.delete(recursive: true));
+
   testWidgets(
       'Camera EXIF orientation is applied before preview and user rotation',
       (tester) async {

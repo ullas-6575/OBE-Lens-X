@@ -27,6 +27,7 @@ class StudentScanPage extends StatefulWidget {
 class _StudentScanPageState extends State<StudentScanPage> {
   bool _started = false;
   String? _error;
+  final Set<String> _savedGroups = {};
 
   @override
   void initState() {
@@ -40,16 +41,17 @@ class _StudentScanPageState extends State<StudentScanPage> {
     try {
       final results = await widget.repository.results(widget.scan.exam.id);
       if (!mounted) return;
-      final saved = results
-          .where((r) => r['roll_no'] == widget.scan.rollNo)
-          .map((r) => r['table_type'])
-          .toSet();
+      _savedGroups
+        ..clear()
+        ..addAll(results
+            .where((r) => r['roll_no'] == widget.scan.rollNo)
+            .map((r) => r['table_type'] as String));
       final remaining = widget.scan.exam.requiredGroups
-          .where((group) => !saved.contains(group))
+          .where((group) => !_savedGroups.contains(group))
           .toList();
       await _scan([
         ...remaining,
-        ...widget.scan.exam.requiredGroups.where(saved.contains),
+        ...widget.scan.exam.requiredGroups.where(_savedGroups.contains),
       ]);
     } catch (error) {
       if (mounted) {
@@ -58,72 +60,69 @@ class _StudentScanPageState extends State<StudentScanPage> {
     }
   }
 
-  Future<void> _nextStudent() async {
-    final values = await inputDialog(
-        context, 'Student / script details', ['Student roll number']);
-    if (!mounted || values == null) return;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => StudentScanPage(
-            repository: widget.repository,
-            ocrService: widget.ocrService,
-            scan: ScanContext(widget.scan.course, widget.scan.offering,
-                widget.scan.exam, values.first))));
-  }
-
   Future<void> _scan(List<String> groups) async {
     final route = ModalRoute.of(context);
-    var handled = false;
-    await openPage(
-        context,
-        ImageSourceScreen(
-            ocrService: widget.ocrService,
-            workflow: ScanWorkflow(
-                rollNo: widget.scan.rollNo,
-                description: widget.scan.label,
-                groups: groups,
-                validate: widget.scan.validateMarks,
-                review: (data) async {
-                  final results =
-                      await widget.repository.results(widget.scan.exam.id);
-                  if (!mounted) return;
-                  final saved = results
-                      .where((row) => row['roll_no'] == widget.scan.rollNo)
-                      .map((row) => row['table_type'])
-                      .toSet();
-                  final remaining = widget.scan.exam.requiredGroups
-                      .where((group) =>
-                          group != data.tableType && !saved.contains(group))
-                      .toList();
-                  final next = await openPage<String>(
-                      context,
-                      SubmissionPage(
-                          repository: widget.repository,
-                          scan: widget.scan,
-                          data: data,
-                          remainingGroups: remaining));
-                  if (!mounted || next == null) return;
-                  handled = true;
-                  Navigator.of(context).popUntil((r) => r == route);
-                  if (next == 'remaining') {
-                    if (remaining.isNotEmpty) await _scan(remaining);
-                    return;
-                  }
-                  if (next == 'next') {
-                    await _nextStudent();
-                    return;
-                  }
-                  if (next == 'results') {
-                    await openPage(
+    var activeGroups = groups;
+    while (mounted) {
+      String? action;
+      var remaining = <String>[];
+      await openPage(
+          context,
+          ImageSourceScreen(
+              ocrService: widget.ocrService,
+              workflow: ScanWorkflow(
+                  rollNo: widget.scan.rollNo,
+                  description: widget.scan.label,
+                  groups: activeGroups,
+                  validate: widget.scan.validateMarks,
+                  review: (data) async {
+                    final result = await openPage<String>(
                         context,
-                        ExamResultsPage(
+                        SubmissionPage(
                             repository: widget.repository,
-                            course: widget.scan.course,
-                            offering: widget.scan.offering,
-                            exam: widget.scan.exam));
-                  }
-                })));
-    if (mounted && !handled) {
+                            scan: widget.scan,
+                            data: data,
+                            autoSave: true));
+                    if (!mounted || result != 'saved') return;
+                    _savedGroups.add(data.tableType);
+                    remaining = widget.scan.exam.requiredGroups
+                        .where((group) => !_savedGroups.contains(group))
+                        .toList();
+                    action = await showDialog<String>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => PopScope(
+                            canPop: false,
+                            child: AlertDialog(
+                                title: const Text('Part complete'),
+                                content: Text(
+                                    'Student ${widget.scan.rollNo} · Questions ${data.tableType}\n'
+                                    '${remaining.isEmpty ? 'All required parts are saved.' : 'Finish now or scan the other part.'}'),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(context, 'done'),
+                                      child: const Text('Done')),
+                                  if (remaining.isNotEmpty)
+                                    FilledButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, 'remaining'),
+                                        child: const Text('Scan other part')),
+                                ])));
+                    if (!mounted) return;
+                    Navigator.of(context).popUntil((r) => r == route);
+                  })));
+      if (!mounted) return;
+      if (action == 'done') {
+        Navigator.of(context).pop();
+        return;
+      }
+      if (action == 'remaining' && remaining.isNotEmpty) {
+        activeGroups = remaining;
+        continue;
+      }
       setState(() => _error = 'Scan cancelled. Tap Scan to try again.');
+      return;
     }
   }
 
@@ -158,14 +157,14 @@ class SubmissionPage extends StatefulWidget {
   final ScanContext scan;
   final MarksTableData data;
   final Json? previous;
-  final List<String> remainingGroups;
+  final bool autoSave;
   const SubmissionPage(
       {super.key,
       required this.repository,
       required this.scan,
       required this.data,
       this.previous,
-      this.remainingGroups = const []});
+      this.autoSave = false});
   @override
   State<SubmissionPage> createState() => _SubmissionPageState();
 }
@@ -191,6 +190,17 @@ class _SubmissionPageState extends State<SubmissionPage> {
       widget.scan.exam.countedQuestions(widget.data.tableType,
           _selectedQuestions.toList(), _displayData.cellMarks) !=
       null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoSave && _selectionReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _save();
+      });
+    }
+  }
+
   Future<void> _save() async {
     if (_busy || _saved || !_selectionReady) return;
     setState(() {
@@ -261,7 +271,10 @@ class _SubmissionPageState extends State<SubmissionPage> {
             _error = 'Could not save: $e. Your reviewed marks are still here.');
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+        if (_saved && widget.autoSave) Navigator.pop(context, 'saved');
+      }
     }
   }
 
@@ -329,16 +342,10 @@ class _SubmissionPageState extends State<SubmissionPage> {
               TextButton(
                   onPressed: _busy ? null : () => Navigator.pop(context),
                   child: const Text('Back to verification')),
-            if (_saved && widget.previous == null) ...[
-              if (widget.remainingGroups.isNotEmpty)
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, 'remaining'),
-                    child: const Text('Scan next group'))
-              else
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, 'next'),
-                    child: const Text('Next student')),
-            ],
+            if (_saved && widget.previous == null)
+              FilledButton(
+                  onPressed: () => Navigator.pop(context, 'done'),
+                  child: const Text('Done')),
             if (_saved && widget.previous != null)
               FilledButton(
                   onPressed: () => Navigator.pop(context, 'results'),

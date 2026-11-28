@@ -102,4 +102,6 @@ htmlcov/
 obelens-ocr/models/**
 !obelens-ocr/models/**/
 !obelens-ocr/models/**/.gitkeep
+!obelens-ocr/models/recognition/inference.onnx
+!obelens-ocr/models/recognition/inference.yml
 obelens-ocr/outputs/

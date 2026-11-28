@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/models/table_selection.dart';
 import 'package:my_app/services/ocr_service.dart';
+import 'support/marksheet_fixture.dart';
+
+late String sample;
 
 Map<String, dynamic> payload() => {
       'tableType': '1-4',
@@ -33,6 +36,20 @@ Map<String, dynamic> payload() => {
     };
 
 void main() {
+  late Directory fixtures;
+  setUpAll(() async {
+    fixtures = await Directory.systemTemp.createTemp('ocr-fixtures-');
+    sample = (await File('${fixtures.path}/table.png')
+            .writeAsBytes(await marksheetPng()))
+        .path;
+  });
+  tearDownAll(() => fixtures.delete(recursive: true));
+
+  test('OCR requires a selected photograph', () async {
+    await expectLater(const PythonOcrService().processImage(),
+        throwsFormatException);
+  });
+
   test('Android channel results decode all nested maps', () {
     // StandardMessageCodec returns Map<Object?, Object?> at every level.
     const codec = StandardMessageCodec();
@@ -53,7 +70,7 @@ void main() {
       final body = jsonDecode(await utf8.decoder.bind(request).join())
           as Map<String, dynamic>;
       expect(base64Decode(body['image_base64'] as String),
-          await File('assets/sample_marksheet.png').readAsBytes());
+          await File(sample).readAsBytes());
       request.response.headers.contentType = ContentType.json;
       if (request.uri.path == '/ocr/detect') {
         expect(body['rotation'], 90);
@@ -72,11 +89,11 @@ void main() {
       final service =
           PythonOcrService(endpoint: 'http://127.0.0.1:${server.port}/');
       final detected = await service.detectTable(
-          imagePath: 'assets/sample_marksheet.png', rotation: 90);
+          imagePath: sample, rotation: 90);
       expect(detected!.toJson(), selection.toJson());
       expect(paths, ['/ocr/detect']);
       await service.processImage(
-          imagePath: 'assets/sample_marksheet.png', selection: detected);
+          imagePath: sample, selection: detected);
       expect(paths, ['/ocr/detect', '/ocr/table']);
     } finally {
       await subscription.cancel();
@@ -94,7 +111,7 @@ void main() {
           as Map<String, dynamic>;
       expect(body['table_type'], '1-4');
       expect(base64Decode(body['image_base64'] as String),
-          await File('assets/sample_marksheet.png').readAsBytes());
+          await File(sample).readAsBytes());
       request.response.headers.contentType = ContentType.json;
       request.response.write(jsonEncode(payload()));
       await request.response.close();
@@ -102,12 +119,12 @@ void main() {
     try {
       final result =
           await PythonOcrService(endpoint: 'http://127.0.0.1:${server.port}')
-              .processImage(imagePath: 'assets/sample_marksheet.png');
+              .processImage(imagePath: sample);
       await requestDone;
       expect(result.getMark('1', 'a'), '15');
       expect(result.cellResults['1']!['a']!.needsReview, isTrue);
       expect(result.isVerified, isFalse);
-      expect(result.imagePath, 'assets/sample_marksheet.png');
+      expect(result.imagePath, sample);
     } finally {
       await server.close(force: true);
     }
@@ -169,7 +186,7 @@ void main() {
     try {
       await expectLater(
           PythonOcrService(endpoint: 'http://127.0.0.1:${server.port}')
-              .processImage(imagePath: 'assets/sample_marksheet.png'),
+              .processImage(imagePath: sample),
           throwsFormatException);
     } finally {
       await server.close(force: true);
@@ -193,11 +210,11 @@ void main() {
       final endpoint = line.split(' ').last;
       final service = PythonOcrService(endpoint: endpoint);
       final selection =
-          await service.detectTable(imagePath: 'assets/sample_marksheet.png');
+          await service.detectTable(imagePath: sample);
       expect(selection, isNotNull);
       expect(selection!.isValid, isTrue);
       final data = await service.processImage(
-          imagePath: 'assets/sample_marksheet.png', selection: selection);
+          imagePath: sample, selection: selection);
       expect(
           data.cellResults.values
               .fold<int>(0, (count, parts) => count + parts.length),

@@ -34,6 +34,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final TextEditingController _rollNoController = TextEditingController();
   late final String _submissionId = newSubmissionId();
   bool _isSubmitting = false;
+  bool _isReviewing = false;
   late final ResultService _resultService =
       widget.resultService ?? const SupabaseResultService();
 
@@ -159,7 +160,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _submitVerification() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting || _isReviewing) return;
 
     final rollNo = _rollNoController.text.trim();
     if (rollNo.isEmpty) {
@@ -207,7 +208,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
 
     if (widget.workflow != null) {
-      await widget.workflow!.review(verifiedData);
+      setState(() => _isReviewing = true);
+      try {
+        await widget.workflow!.review(verifiedData);
+      } finally {
+        if (mounted) setState(() => _isReviewing = false);
+      }
       return;
     }
     setState(() => _isSubmitting = true);
@@ -484,11 +490,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
       );
     }
 
-    return Image.asset(
-      'assets/sample_marksheet.png',
+    return SizedBox(
       height: height,
       width: width,
-      fit: fit,
+      child: const Center(child: Icon(Icons.image_not_supported_outlined)),
     );
   }
 
@@ -840,7 +845,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   // Verify & Submit Button
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _isSubmitting ? null : _submitVerification,
+                      onPressed: _isSubmitting || _isReviewing
+                          ? null
+                          : _submitVerification,
                       icon: _isSubmitting
                           ? const SizedBox(
                               width: 18,
@@ -851,11 +858,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                             )
                           : const Icon(Icons.check_circle_rounded),
                       label: Text(
-                        _isSubmitting
-                            ? 'Saving…'
-                            : (widget.workflow != null
-                                ? 'Review submission'
-                                : 'Verify & Submit'),
+                        _isSubmitting ? 'Saving…' : 'Verify & Submit',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

@@ -1,4 +1,4 @@
-"""Settings for inference with a supplied local PaddleOCR model."""
+"""Settings for inference with the bundled fine-tuned OCR model."""
 from dataclasses import dataclass
 import math
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class RecognitionConfig:
-    model_name: str = 'en_PP-OCRv5_mobile_rec'
+    model_name: str = 'obelens'
     model_dir: str | None = str(Path(__file__).resolve().parents[1] / 'models/recognition')
     device: str = 'cpu'
     confidence_threshold: float = 0.8

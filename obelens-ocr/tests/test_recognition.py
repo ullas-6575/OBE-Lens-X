@@ -27,7 +27,7 @@ class RecognitionTests(unittest.TestCase):
         factory = Mock()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / 'inference.json').write_text('{}')
+            (root / 'inference.onnx').touch()
             with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(TextRecognition=factory)}):
                 for model_dir in (None, str(root / 'missing'), str(root)):
                     with self.subTest(model_dir=model_dir):
@@ -41,20 +41,35 @@ class RecognitionTests(unittest.TestCase):
         factory = Mock(return_value=backend)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            for name in ('inference.json', 'inference.pdiparams', 'inference.yml'):
+            for name in ('inference.onnx', 'inference.yml'):
                 (root / name).touch()
             with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(TextRecognition=factory)}):
                 recognizer = MarkRecognizer(RecognitionConfig(model_dir=str(root)))
                 for _ in range(2):
                     self.assertEqual(recognizer.predict_mark(Image.new('RGB', (20, 20), 'black'))['value'], 15)
             factory.assert_called_once_with(model_name='en_PP-OCRv5_mobile_rec',
-                                            model_dir=str(root), device='cpu')
+                                            model_dir=str(root), device='cpu',
+                                            engine='onnxruntime',
+                                            engine_config={'intra_op_num_threads': 2})
             self.assertEqual(backend.calls, 2)
+
+    def test_default_uses_obelens_in_original_model_directory(self):
+        root = Path(__file__).resolve().parents[1] / 'models/recognition'
+        factory = Mock(return_value=Backend())
+        with patch.dict('sys.modules', {'paddleocr': SimpleNamespace(TextRecognition=factory)}):
+            recognizer = MarkRecognizer()
+            self.assertEqual(recognizer.predict_mark(Image.new('RGB', (20, 20), 'black'))['value'], 15)
+        self.assertEqual(factory.call_args.kwargs['model_dir'], str(root))
+        self.assertEqual(factory.call_args.kwargs['engine'], 'onnxruntime')
+        self.assertEqual(recognizer.config.model_name, 'obelens')
 
     def test_raw_predictions_validation_and_review(self):
         for text, score, valid, review in [('15', .9, True, False), ('15', .3, True, True),
                                          ('I5', .99, False, True), ('21', .99, False, True),
-                                         ('100', .99, False, True), (' 5 ', .99, True, False)]:
+                                         ('100', .99, False, True), (' 5 ', .99, True, False),
+                                         ('\u09e7\u09e8', .99, False, True),
+                                         ('\u0661\u0662', .99, False, True),
+                                         ('\uff11\uff12', .99, False, True)]:
             result = MarkRecognizer(backend=Backend(text, score)).predict_mark(Image.new('RGB', (20, 20), 'black'), 20)
             self.assertEqual((result['text'], result['valid'], result['needs_review']), (text, valid, review))
 
