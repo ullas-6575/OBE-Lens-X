@@ -44,6 +44,8 @@ TEMPLATES = (
     (np.linspace(0,1,6),
      np.array([0,100,180,260,340,420,500,580,660,740])/740),
 )
+# Perspective foreshortening changes row and column spacing independently.
+TEMPLATES = tuple((xs, ys) for xs, _ in TEMPLATES for _, ys in TEMPLATES)
 
 
 def _fit_axis(positions, ratios, span_hint, extent):
@@ -268,7 +270,7 @@ def _grid_profiles(binary, vertical):
     return centers, profiles
 
 
-def _trace_grid(profiles, centers, expected, span):
+def _trace_grid(profiles, centers, expected):
     tracks, count, score = [], 0, 0.
     for index, position in enumerate(expected):
         gap = min(np.diff(expected)[max(0, index-1):min(len(expected)-1, index+1)])
@@ -286,7 +288,7 @@ def _trace_grid(profiles, centers, expected, span):
         if valid.sum() >= GRID_SAMPLES*.4:
             trace = np.interp(centers, centers[valid], np.asarray(found)[valid])
             count += 1
-            score += float(valid.mean()) - min(float(np.median(abs(trace-position)))/span, .08)
+            score += float(valid.mean()) - min(float(np.median(abs(trace-position)))/gap, .4)
         else:
             trace = np.full(GRID_SAMPLES, position)
         tracks.append(trace)
@@ -303,8 +305,8 @@ def _align_grid(corrected, *, manual=False):
         best = None
         for xr,yr in TEMPLATES:
             xs, ys = WARP_MARGIN+xr*(w-2*WARP_MARGIN-1), WARP_MARGIN+yr*(h-2*WARP_MARGIN-1)
-            vx, nx, sx = _trace_grid(vertical, sample_y, xs, w-2*WARP_MARGIN-1)
-            hy, ny, sy = _trace_grid(horizontal, sample_x, ys, h-2*WARP_MARGIN-1)
+            vx, nx, sx = _trace_grid(vertical, sample_y, xs)
+            hy, ny, sy = _trace_grid(horizontal, sample_x, ys)
             if np.min(np.diff(vx, axis=0)) < 15 or np.min(np.diff(hy, axis=0)) < 15:
                 continue
             if ((manual and faint) or (nx>=3 and ny>=4)) and (best is None or sx+sy>best[0]):

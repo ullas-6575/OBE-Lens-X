@@ -117,7 +117,11 @@ Both Android and Python recover partial outer edges through the same
 Hough line detection, clustering and template fitting. Line and contour candidates
 compete on warped grid evidence so the attached Grand Total box cannot win merely
 because it belongs to a larger contour. Matched lines refine the template fit,
-and nearby visible outer borders anchor its corners. Dominant line orientation also supplies a deskew fallback for tilted
+and nearby visible outer borders anchor its corners. Row and column layouts
+are fitted independently to handle perspective foreshortening. Grid scoring
+penalizes shifts relative to each cell size, preventing a one-row displacement
+from winning by including the signature line or dropping the Total row.
+Dominant line orientation also supplies a deskew fallback for tilted
 tables with broken borders. The main rubric is perspective-warped to a fixed
 1000 × 1400 area with a margin. Short horizontal/vertical line segments are then
 traced across 17 image strips and registered to a known rubric template. A
@@ -139,7 +143,9 @@ in-plane tilts of -35° and +32°, perspective, and a curved table rotated 24°;
 these are synthetic checks, not a measured guarantee for every camera image.
 The supplied Q5–Q8 photo is also a regression fixture: detection excludes its
 Grand Total extension, all 28 cell positions are checked, and the bundled model
-is checked against its nine handwritten numeric marks.
+is checked against its nine handwritten numeric marks. A full-page perspective
+photo additionally checks the header and Total boundaries, excludes the signature
+and Grand Total extension, and verifies the same numeric marks.
 The existing API/CLI pixel `corners` format remains available.
 
 Android and the Python backend used by Linux, macOS, Windows, and iOS follow

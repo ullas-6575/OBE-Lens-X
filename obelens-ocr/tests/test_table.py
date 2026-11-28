@@ -31,6 +31,23 @@ class Backend:
 
 
 class ExtractionTests(unittest.TestCase):
+    def test_full_page_perspective_excludes_signature_and_includes_total(self):
+        image = cv2.imread(str(Path(__file__).parent/'fixtures/answer_table_perspective.jpg'))
+        corners = np.asarray(detect_corners(image))*[image.shape[1]-1,image.shape[0]-1]
+        # These are the actual table borders, not the signature line or the Grand Total box.
+        np.testing.assert_allclose(corners,[[178,467],[851,455],[918,1469],[133,1484]],atol=14)
+        self.assertGreater(corners[:,1].min(),440)
+        self.assertGreater(corners[2:,1].min(),1450)
+        self.assertLess(corners[:,0].max(),940)
+        cells = extract_cells(image,table_type='5-8').cells
+        self.assertEqual(len(cells),28)
+        for row,y in enumerate([670,766,866,966,1072,1181,1297]):
+            for column,x in enumerate([440,570,700,823]):
+                cell = cells[row*4+column]
+                left,top,right,bottom = cell.bounds
+                self.assertTrue(left<x<right and top<y<bottom,
+                                f'Q{cell.question}{cell.part}: {cell.bounds}')
+
     def test_captured_table_excludes_extension_and_preserves_cell_positions(self):
         image = cv2.imread(str(Path(__file__).parent/'fixtures/answer_table_q5_q8.jpg'))
         corners = np.asarray(detect_corners(image))*[image.shape[1]-1,image.shape[0]-1]

@@ -110,6 +110,10 @@ object TableDetector {
             doubleArrayOf(0.0,96.0/526,150.0/526,202.0/526,255.0/526,308.0/526,361.0/526,414.0/526,474.0/526,1.0),
         DoubleArray(6) { it * .2 } to
             doubleArrayOf(0.0,100.0/740,180.0/740,260.0/740,340.0/740,420.0/740,500.0/740,580.0/740,660.0/740,1.0))
+        .let { layouts ->
+            // Perspective foreshortening changes the two axes independently.
+            layouts.flatMap { (xs, _) -> layouts.map { (_, ys) -> xs to ys } }
+        }
 
     private fun threshold(gray: Mat, binary: Mat, faint: Boolean = false) {
         val blurred = Mat()
@@ -357,7 +361,7 @@ object TableDetector {
         } finally { thick.release(); mask.release(); dilation.release(); kernel.release() }
     }
 
-    private fun traceGrid(profiles: Profiles, expected: DoubleArray, span: Double): Traces {
+    private fun traceGrid(profiles: Profiles, expected: DoubleArray): Traces {
         var count = 0
         var score = 0.0
         val traces = expected.indices.map { index ->
@@ -376,7 +380,7 @@ object TableDetector {
                 val values = valid.map { found[it] }.toDoubleArray()
                 val trace = DoubleArray(GRID_SAMPLES) { interpolate(centers,values,profiles.centers[it]) }
                 count++
-                score += valid.size.toDouble()/GRID_SAMPLES-min(median(trace.map { abs(it-position) })/span,.08)
+                score += valid.size.toDouble()/GRID_SAMPLES-min(median(trace.map { abs(it-position) })/gap,.4)
                 trace
             } else DoubleArray(GRID_SAMPLES) { position }
         }.toTypedArray()
@@ -396,8 +400,8 @@ object TableDetector {
                 for ((xr, yr) in templates) {
                     val xs = xr.map { WARP_MARGIN+it*(gray.cols()-2*WARP_MARGIN-1) }.toDoubleArray()
                     val ys = yr.map { WARP_MARGIN+it*(gray.rows()-2*WARP_MARGIN-1) }.toDoubleArray()
-                    val vx = traceGrid(vertical,xs,gray.cols()-2*WARP_MARGIN-1)
-                    val hy = traceGrid(horizontal,ys,gray.rows()-2*WARP_MARGIN-1)
+                    val vx = traceGrid(vertical,xs)
+                    val hy = traceGrid(horizontal,ys)
                     fun crossing(traces: Array<DoubleArray>): Boolean =
                         (0 until traces.size-1).any { i -> (0 until GRID_SAMPLES).any { traces[i+1][it]-traces[i][it]<15 } }
                     if (crossing(vx.values) || crossing(hy.values)) continue
