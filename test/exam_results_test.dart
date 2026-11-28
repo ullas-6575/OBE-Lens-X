@@ -40,9 +40,9 @@ void main() {
       }),
     ];
     expect(resultsWorksheet(exam, results), [
-      ['Roll', '1a', '1b', '5a'],
-      ['2', '10', 'N/A', '7'],
-      ['10', '04', '8', 'N/A'],
+      ['Roll', '1a', '1b', '5a', 'Total Obtained Marks', 'Total Marks'],
+      ['2', '10', 'N/A', '7', '17', '30'],
+      ['10', '04', '8', 'N/A', 'Pending', 'Pending'],
     ]);
     final excel = resultsExcelXml(exam, results);
     expect(excel, contains('<Data ss:Type="String">04</Data>'));
@@ -82,8 +82,8 @@ void main() {
     expect(find.text('5a'), findsOneWidget);
     expect(find.text('other-student'), findsNothing);
     expect(tester.widget<WorksheetGrid>(find.byType(WorksheetGrid)).rows, [
-      ['Roll', '1a', '1b', '5a'],
-      ['98', '10', 'N/A', '04'],
+      ['Roll', '1a', '1b', '5a', 'Total Obtained Marks', 'Total Marks'],
+      ['98', '10', 'N/A', '04', '14', '30'],
     ]);
     expect(tester.takeException(), isNull);
     await tester.tap(find.text('98'));

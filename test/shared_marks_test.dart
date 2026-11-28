@@ -69,8 +69,8 @@ void main() {
     await repo.saveMarks(
         scan, 'second-upload', '5-8', marks('5-8', '7').cellMarks);
     expect(resultsWorksheet(sharedExam, await repo.results('exam')), [
-      ['Roll', '1a', '5a'],
-      ['ROLL001', '5', '7'],
+      ['Roll', '1a', '5a', 'Total Obtained Marks', 'Total Marks'],
+      ['ROLL001', '5', '7', '12', '20'],
     ]);
   });
 
