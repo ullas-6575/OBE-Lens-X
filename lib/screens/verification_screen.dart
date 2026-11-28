@@ -39,11 +39,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
       widget.resultService ?? const SupabaseResultService();
 
   bool _isFlagged(String q, String p) {
+    if (_exceedsMaximum(q, p)) return true;
     final result = widget.marksTableData.cellResults[q]?[p];
     return result != null &&
         result.needsAttention &&
         !result.teacherReviewed &&
         !_edited.contains('$q:$p');
+  }
+
+  int? _maximumMark(String question, String part) =>
+      widget.workflow?.maximumFor?.call(question, part) ??
+      widget.marksTableData.cellResults[question]?[part]?.maxMark;
+
+  bool _exceedsMaximum(String question, String part) {
+    final maximum = _maximumMark(question, part);
+    final text = _controllers[question]?[part]?.text.trim();
+    return maximum != null &&
+        MarksTableData.isNumericMark(text) &&
+        int.parse(text!) > maximum;
   }
 
   late String _activeTableType; // '1-4' or '5-8'
@@ -185,6 +198,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
           return;
         }
         updatedMarks[q]![p] = MarksTableData.normalizeMark(raw);
+        if (_exceedsMaximum(q, p)) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  'Q$q$p exceeds its maximum of ${_maximumMark(q, p)}. Correct the highlighted mark.')));
+          return;
+        }
       }
     }
 
@@ -603,14 +622,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
                                           size: 12,
                                         ),
                                         const SizedBox(width: 4),
-                                        Text(
+                                        Flexible(
+                                            child: Text(
                                           '${(widget.marksTableData.confidenceScore * 100).toStringAsFixed(1)}% model confidence',
                                           style: const TextStyle(
                                             color: Colors.green,
                                             fontSize: 11,
                                             fontWeight: FontWeight.bold,
                                           ),
-                                        ),
+                                        )),
                                       ],
                                     ),
                                   ),
@@ -644,7 +664,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
                     if (widget.marksTableData.cellResults.isNotEmpty) ...[
                       const Text(
-                          'Review the table and tap only marks you want to change. Flags are optional hints.',
+                          'Review the table. Correct red cells before submitting; tap any mark to edit.',
                           key: ValueKey('review-summary')),
                       const SizedBox(height: 12),
                     ],
@@ -661,6 +681,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: SegmentedButton<String>(
+                            showSelectedIcon: false,
                             segments: const [
                               ButtonSegment(
                                 value: '1-4',
@@ -710,7 +731,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Numbers only. Empty cells show N/A. Warnings mark uncertain readings.',
+                              'Numbers only. Empty cells show N/A. Red cells exceed the maximum; amber cells need review.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: colorScheme.primary,
@@ -753,29 +774,30 @@ class _VerificationScreenState extends State<VerificationScreen> {
                           ),
                         ],
                       ),
-                      child: Column(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Table Header: Marks (on) | [Col 1] | [Col 2] | [Col 3] | [Col 4]
-                          Container(
-                            color: const Color(0xFFD6D6D6), // Grey header
-                            child: Row(
-                              children: [
-                                _buildTableHeadingCell('Marks (on)', flex: 2),
-                                for (final q in _activeQuestions)
-                                  _buildTableHeadingCell(q),
-                              ],
+                          Expanded(
+                              child: Column(children: [
+                            // Table Header: Marks (on) | [Col 1] | [Col 2] | [Col 3] | [Col 4]
+                            Container(
+                              color: const Color(0xFFD6D6D6), // Grey header
+                              child: Row(
+                                children: [
+                                  _buildTableHeadingCell('Marks (on)', flex: 2),
+                                  for (final q in _activeQuestions)
+                                    _buildTableHeadingCell(q),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          // Rows a to f
-                          for (final p in ['a', 'b', 'c', 'd', 'e', 'f'])
-                            _buildDataRow(p),
+                            // Every part and total shares the same question-column widths.
+                            for (final p in MarksTableData.parts)
+                              _buildDataRow(p),
 
-                          // Row g with Grand Total cell on the right
-                          _buildRowGWithGrandTotalHeader(),
-
-                          // Total Row with Column totals & Grand Total value
-                          _buildTotalRowWithGrandTotal(grandTotal),
+                            _buildTotalRow(),
+                          ])),
+                          _buildGrandTotal(grandTotal),
                         ],
                       ),
                     ),
@@ -885,6 +907,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return Expanded(
       flex: flex,
       child: Container(
+        key: ValueKey('heading-$title'),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
         decoration: BoxDecoration(
           border: Border.all(color: Colors.black87, width: 0.6),
@@ -909,6 +932,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         Expanded(
           flex: 2,
           child: Container(
+            key: ValueKey('part-$part'),
             height: 38,
             decoration: BoxDecoration(
               border: Border.all(color: Colors.black87, width: 0.6),
@@ -930,53 +954,49 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 
-  Widget _buildRowGWithGrandTotalHeader() {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Container(
-            height: 38,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black87, width: 0.6),
-              color: const Color(0xFFFAFAFA),
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'g',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+  Widget _buildGrandTotal(double grandTotal) {
+    return SizedBox(
+        width: 58,
+        child: Column(
+          children: [
+            // Grand Total Label Header Cell
+            Container(
+              width: 58,
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black87, width: 1.0),
+                color: const Color(0xFFFEF3C7), // Light amber
+              ),
+              alignment: Alignment.center,
+              child: const Text(
+                'Grand\nTotal',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  height: 1.1,
+                ),
               ),
             ),
-          ),
-        ),
-        for (final q in _activeQuestions) _buildEditableCell(q, 'g'),
-        // Grand Total Label Header Cell
-        Container(
-          width: 58,
-          height: 38,
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black87, width: 1.0),
-            color: const Color(0xFFFEF3C7), // Light amber
-          ),
-          alignment: Alignment.center,
-          child: const Text(
-            'Grand\nTotal',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-              height: 1.1,
+            Container(
+              height: 42,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black87, width: 1.0),
+                color: const Color(0xFFFDE68A),
+              ),
+              alignment: Alignment.center,
+              child: Text(_formatNumber(grandTotal),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      color: Color(0xFFB45309))),
             ),
-          ),
-        ),
-      ],
-    );
+          ],
+        ));
   }
 
-  Widget _buildTotalRowWithGrandTotal(double grandTotal) {
+  Widget _buildTotalRow() {
     return Row(
       children: [
         // 'Total' label
@@ -1002,6 +1022,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         for (final q in _activeQuestions)
           Expanded(
             child: Container(
+              key: ValueKey('total-$q'),
               height: 42,
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.black87, width: 0.6),
@@ -1018,24 +1039,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
             ),
           ),
-        // Live Grand Total Value
-        Container(
-          width: 58,
-          height: 42,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black87, width: 1.0),
-            color: const Color(0xFFFDE68A), // Amber accent
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _formatNumber(grandTotal),
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-              color: Color(0xFFB45309), // Dark amber
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -1049,6 +1052,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             question: question,
             part: part,
             value: _controllers[question]![part]!.text,
+            maxMark: _maximumMark(question, part),
             result: result));
     if (!mounted || value == null) return;
     setState(() {
@@ -1059,28 +1063,40 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   Widget _buildEditableCell(String question, String part) {
     final result = widget.marksTableData.cellResults[question]?[part];
+    final excessive = _exceedsMaximum(question, part);
+    final warning = excessive
+        ? 'Maximum ${_maximumMark(question, part)}. Correct question $question, part $part.'
+        : 'Edit question $question, part $part';
     if (result != null) {
       final flagged = _isFlagged(question, part);
       return Expanded(
           child: Tooltip(
-        message: 'Edit question $question, part $part',
+        message: warning,
         child: InkWell(
           key: ValueKey('edit-$question-$part'),
           onTap: () => _editCell(question, part, result),
           child: Container(
+            key: ValueKey('mark-$question-$part'),
             height: 38,
             decoration: BoxDecoration(
-                color: flagged ? Colors.amber.shade100 : null,
+                color: excessive
+                    ? Colors.red.shade100
+                    : flagged
+                        ? Colors.amber.shade100
+                        : null,
                 border: Border.all(color: Colors.black87, width: .6)),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Flexible(
                   child: Text(_controllers[question]![part]!.text,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600))),
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: excessive ? Colors.red.shade900 : null))),
               if (flagged) ...[
                 const SizedBox(width: 2),
-                const Icon(Icons.warning_amber_rounded,
-                    size: 13, color: Colors.brown),
+                Icon(Icons.warning_amber_rounded,
+                    size: 13,
+                    color: excessive ? Colors.red.shade900 : Colors.brown),
               ],
             ]),
           ),
@@ -1092,49 +1108,58 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final isNA = currentText.isEmpty || currentText.toUpperCase() == 'N/A';
 
     return Expanded(
-      child: Container(
-        height: 38,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.black87, width: 0.6),
-        ),
-        child: Focus(
-          onFocusChange: (hasFocus) {
-            if (!hasFocus) {
-              final val = controller?.text.trim() ?? '';
-              if (val.isEmpty) {
-                // Empty cells are N/A; invalid nonempty input stays visible so
-                // submit validation can explain what must be fixed.
-                controller?.text = 'N/A';
-                setState(() {});
-              }
-            }
-          },
-          child: TextField(
-            key: ValueKey('manual-$question-$part'),
-            controller: controller,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: isNA ? 11 : 13,
-              fontWeight: isNA ? FontWeight.normal : FontWeight.w600,
-              color: isNA ? Colors.grey.shade400 : const Color(0xFF1E3A8A),
+      child: Tooltip(
+          message: warning,
+          child: Container(
+            key: ValueKey('mark-$question-$part'),
+            height: 38,
+            decoration: BoxDecoration(
+              color: excessive ? Colors.red.shade100 : null,
+              border: Border.all(color: Colors.black87, width: 0.6),
             ),
-            decoration: const InputDecoration(
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.indigo, width: 1.5),
+            child: Focus(
+              onFocusChange: (hasFocus) {
+                if (!hasFocus) {
+                  final val = controller?.text.trim() ?? '';
+                  if (val.isEmpty) {
+                    // Empty cells are N/A; invalid nonempty input stays visible so
+                    // submit validation can explain what must be fixed.
+                    controller?.text = 'N/A';
+                    setState(() {});
+                  }
+                }
+              },
+              child: TextField(
+                key: ValueKey('manual-$question-$part'),
+                controller: controller,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: isNA ? 11 : 13,
+                  fontWeight: isNA ? FontWeight.normal : FontWeight.w600,
+                  color: excessive
+                      ? Colors.red.shade900
+                      : isNA
+                          ? Colors.grey.shade400
+                          : const Color(0xFF1E3A8A),
+                ),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.indigo, width: 1.5),
+                  ),
+                ),
+                onChanged: (newVal) {
+                  setState(
+                      () {}); // Recalculates column totals and grand total live
+                },
               ),
             ),
-            onChanged: (newVal) {
-              setState(
-                  () {}); // Recalculates column totals and grand total live
-            },
-          ),
-        ),
-      ),
+          )),
     );
   }
 }

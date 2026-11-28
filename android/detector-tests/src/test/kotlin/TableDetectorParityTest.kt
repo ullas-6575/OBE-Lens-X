@@ -6,11 +6,45 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.opencv.imgcodecs.Imgcodecs
+import org.opencv.core.Core
+import org.opencv.core.Mat
+import org.opencv.core.Point
+import org.opencv.core.Rect
 import java.io.File
 import kotlin.math.abs
 
 @RunWith(Parameterized::class)
 class TableDetectorParityTest(private val name: String, private val expected: String) {
+    @Test fun matchesLinuxCellReconstruction() {
+        if (expected == "none") return
+        val image = Imgcodecs.imread(File(directory,"$name.png").path)
+        val corners = expected.split(',').map { it.toDouble() }
+        val points = Array(4) { Point(corners[it*2]*(image.cols()-1), corners[it*2+1]*(image.rows()-1)) }
+        try {
+            val grid = TableDetector.rectify(image,points)
+            try {
+                var index = 0
+                for (row in 1..7) for (column in 1..4) {
+                    val x1 = grid.xs[column]
+                    val x2 = grid.xs[column+1]
+                    val y1 = grid.ys[row]
+                    val y2 = grid.ys[row+1]
+                    val pad = maxOf(3,(minOf(x2-x1,y2-y1)*.07).toInt())
+                    val cell = grid.image.submat(Rect(x1+pad,y1+pad,x2-x1-2*pad,y2-y1-2*pad))
+                    val wanted = Imgcodecs.imread(File(directory,"${name}_cell_${index++}.png").path)
+                    val difference = Mat()
+                    try {
+                        assertEquals("$name cell width",wanted.cols(),cell.cols())
+                        assertEquals("$name cell height",wanted.rows(),cell.rows())
+                        Core.absdiff(cell,wanted,difference)
+                        assertTrue("$name cell $index pixels differ",Core.mean(difference).`val`.take(3).average()<3)
+                    } finally { cell.release(); wanted.release(); difference.release() }
+                }
+                assertEquals(28,index)
+            } finally { grid.image.release() }
+        } finally { image.release() }
+    }
+
     @Test fun matchesLinuxDetection() {
         val image = Imgcodecs.imread(File(directory, "$name.png").path)
         try {

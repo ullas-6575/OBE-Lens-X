@@ -55,6 +55,11 @@ Future<void> startScan(WidgetTester tester, ScanRepository repo,
   await tester.enterText(find.byType(TextFormField), 'ROLL001');
   await press(tester, 'Continue');
   expect(find.byType(ImageSourceScreen), findsOneWidget);
+  final workflow = tester
+      .widget<ImageSourceScreen>(find.byType(ImageSourceScreen))
+      .workflow!;
+  expect(workflow.maximumFor!('1', 'a'), 10);
+  expect(workflow.maximumFor!('1', 'g'), 0);
 }
 
 Future<void> reviewPart(WidgetTester tester, MarksTableData data) async {

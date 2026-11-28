@@ -1,7 +1,7 @@
 # OBE-Lens OCR
 
 Table photograph → automatic corner suggestion → Flutter crop/rotation preview →
-explicit corners → perspective correction → grid extraction → 28 cropped cells →
+explicit corners → perspective correction → curved-grid straightening → 28 cropped cells →
 your supplied local recognition model → advisory integer validation and confidence flags → Flutter review.
 The app only runs inference. It has no datasets, training, fine-tuning, or automatic model downloads.
 
@@ -77,8 +77,9 @@ An OCR failure offers **Adjust Table Corners**, preserving the selection.
 
 The complete reconstructed table is ready immediately after scanning. Clearly
 empty cells show `N/A` without warnings. Only one- or two-digit English readings
-enter the table, preserving leading zeros. Low-confidence numbers and numbers
-above a configured maximum receive an amber warning. The default model emits
+enter the table, preserving leading zeros. Numbers above the exam's configured
+maximum are highlighted red and must be corrected before submission; the edit
+dialog shows that maximum. Confidence scores remain available for review. The default model emits
 only `0–9`; unrecognized handwriting and readings longer than two digits display
 `N/A` with a warning. Raw OCR predictions remain available in the edit dialog and
 API cell details. Restricting output does not guarantee that letters in an image
@@ -87,8 +88,9 @@ High-confidence valid numbers show just the mark, without a tick.
 
 Teacher review applies to the table as a whole. Click only marks you want to
 change: the **Edit Mark** dialog shows the crop and original prediction, and has
-Save, Set N/A and Cancel actions. Flags never require acknowledgment or prevent
-submission. Submission contains only numeric marks or `N/A`, which contributes
+Save, Set N/A and Cancel actions. Amber hints do not require acknowledgment;
+marks exceeding the configured maximum must be corrected before submission.
+Submission contains only numeric marks or `N/A`, which contributes
 zero to totals. Reset restores the numeric/N/A display and original flags.
 Edits do not mirror between question groups. The
 selected group stays fixed for an OCR result. Confidence is not measured accuracy.
@@ -101,18 +103,26 @@ Use one complete, roughly upright table that fills most of the photograph, with
 visible ruled borders. The app's selected Q1–Q4 or Q5–Q8 group determines column
 identities; printed question headers are not recognized separately.
 
-Detection follows resize → grayscale → Gaussian blur → adaptive threshold →
+Detection follows resize → illumination normalization → adaptive threshold →
 morphological closing → contours → large convex quadrilaterals → candidate
-scoring → perspective warp → row/column validation. Geometry scoring uses
+scoring → perspective warp → row/column validation. Illumination is estimated
+with a wide Gaussian blur and divided out for geometry detection; original color
+pixels are retained for OCR. If localization fails, a second threshold pass
+retains fainter printed lines; the warped grid check uses the same fallback. Geometry scoring uses
 area, rectangularity, and the expected portrait aspect ratio; warped grid
 alignment selects the marks table instead of a larger page border. Android
 runs this locally using the [official OpenCV Android package](https://opencv.org/opencv4android-usage-models/),
 without loading the OCR model. Both paths apply EXIF orientation before user rotation.
 Both Android and Python recover partial outer edges through the same
-line/template fitting when no contour passes validation. The main rubric is perspective-warped to a
-fixed 1000 × 1400 area, then the 28 marks
-are cropped using normalized reference coordinates. Visible internal lines can
-refine those coordinates; missing or extra lines are not fatal. Both question
+Hough line detection, clustering and template fitting. Line and contour candidates
+compete on warped grid evidence so the attached Grand Total box cannot win merely
+because it belongs to a larger contour. Matched lines refine the template fit,
+and nearby visible outer borders anchor its corners. Dominant line orientation also supplies a deskew fallback for tilted
+tables with broken borders. The main rubric is perspective-warped to a fixed
+1000 × 1400 area with a margin. Short horizontal/vertical line segments are then
+traced across 17 image strips and registered to a known rubric template. A
+nonlinear grid remap straightens moderate paper bends before cropping all 28
+marks. Missing boundaries use template positions. Both question
 groups use the same geometry and retain their selected question identities.
 
 Automatic localization needs aggregate grid evidence (at least three vertical and four
@@ -122,8 +132,14 @@ has enough alignment evidence, the preview offers manual corner adjustment.
 Explicit corners skip localization and allow template-based extraction even
 without enough visible borders; visible lines still refine the chosen layout.
 With no usable internal lines the reference OBE template is assumed, so check the
-result carefully. Arbitrary layouts and curved pages remain unsupported. Rotate
-sideways photographs upright in the preview; moderate perspective is supported.
+result carefully. Moderate curvature needs visible grid lines; sharp folds,
+occlusion and unrelated layouts remain unsupported. Rotate sideways or
+upside-down photographs upright in the preview. Regression fixtures cover
+in-plane tilts of -35° and +32°, perspective, and a curved table rotated 24°;
+these are synthetic checks, not a measured guarantee for every camera image.
+The supplied Q5–Q8 photo is also a regression fixture: detection excludes its
+Grand Total extension, all 28 cell positions are checked, and the bundled model
+is checked against its nine handwritten numeric marks.
 The existing API/CLI pixel `corners` format remains available.
 
 Android and the Python backend used by Linux, macOS, Windows, and iOS follow
@@ -132,13 +148,14 @@ these same detection settings (a reachable Python API is required outside Androi
 | Stage | Shared behavior |
 | --- | --- |
 | Resize | Long edge at most 2000 pixels, OpenCV linear interpolation |
-| Threshold | BGR → gray, 5×5 Gaussian blur, Gaussian adaptive threshold, block 31, C=12, inverted |
+| Threshold | BGR → gray, divide out Gaussian-estimated illumination (sigma 25), 5×5 blur, Gaussian adaptive threshold, block 31, C=12 (retry C=4 for faint grids), inverted |
 | Morphology | 5×5 closing, then up to 80 largest contours |
 | Candidates | Convex quadrilaterals, at least 1000 pixels and 2% of image area; contour tolerances .015/.025/.04 |
 | Ranking | Rectangularity, area, and portrait aspect ratio; warped grid score selects the winner |
-| Warp/check | Unblurred source → 1000×1400 area with 8-pixel margin → gray/blur/threshold |
-| Accept | At least 3 vertical and 4 horizontal template-border matches within 3.5% |
-| Recovery | Same Hough line grouping/template fitting, then the same warped-grid check |
+| Warp/check | Unblurred source → 1000×1400 area with 96-pixel margin for outward bends → normalized gray/blur/threshold |
+| Accept | At least 3 vertical and 4 horizontal boundaries supported across 40% of 17 strips |
+| Recovery | Hough orientation voting, deskew, line clustering/template fitting, then the same warped-grid check |
+| Cell reconstruction | Follow visible boundaries, fill missing ones from the template, then remap the curved grid before cropping |
 | Fallback | Keep manual corner editing available when no candidate passes |
 
 Android decoding keeps at least 2000 pixels on the long edge when the photo is

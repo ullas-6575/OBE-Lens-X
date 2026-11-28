@@ -64,7 +64,7 @@ Its objectives are to:
 ### Capture and verification
 
 - Question groups **Q1–Q4** and **Q5–Q8**, each with parts **a–g**: 28 cells per scan.
-- Automatic corner detection, four-corner manual adjustment, 90-degree rotation, and perspective correction.
+- Illumination-normalized corner detection, Hough deskew recovery, four-corner manual adjustment, 90-degree rotation, perspective correction, and grid-based straightening for moderate paper bends.
 - Local Android recognition using ONNX Runtime; Python OCR for desktop and browser clients.
 - Cell crop evidence, raw predictions, confidence flags, and optional manual corrections.
 - English digits (`0–9`) only, one- or two-digit integer marks, preserved leading zeroes, and `N/A` for blank or unrecognized cells. The model suppresses non-digit output classes and retains its original digit confidence scores.
@@ -593,7 +593,7 @@ Before public deployment:
 
 Current limits:
 
-- OCR assumes the supplied OBE rubric: four question columns, seven part rows, header/total rows, and a separable main table. Curved pages, unrelated layouts, and unverified handwriting accuracy remain limitations.
+- OCR assumes the supplied OBE rubric: four question columns, seven part rows, header/total rows, and a separable main table. Moderate bends can be corrected when grid lines are visible; sharp folds, occlusion, unrelated layouts, and unverified handwriting accuracy remain limitations.
 - Android and Python have different runtime adapters. Changing a model's tensor format or dictionary can require code changes; arbitrary supplied models are not interchangeable.
 - Python recognition is lazy and processes cells individually. The shared threaded server limits the CPU-heavy section to two requests, but does not fully bound decoding memory or guard lazy model initialization against simultaneous first scans.
 - Normal dashboards expose course/exam workflows. Legacy unassigned-scanning components remain in source, but there is no Quick Scan action in the standard dashboard.

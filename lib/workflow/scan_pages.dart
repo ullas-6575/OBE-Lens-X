@@ -74,6 +74,15 @@ class _StudentScanPageState extends State<StudentScanPage> {
                   rollNo: widget.scan.rollNo,
                   description: widget.scan.label,
                   groups: activeGroups,
+                  maximumFor: (question, part) {
+                    for (final mapping in widget.scan.exam.questions) {
+                      if (mapping.question == question &&
+                          mapping.part == part) {
+                        return mapping.maxMark;
+                      }
+                    }
+                    return 0;
+                  },
                   validate: widget.scan.validateMarks,
                   review: (data) async {
                     final result = await openPage<String>(

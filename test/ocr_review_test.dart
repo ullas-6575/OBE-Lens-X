@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_app/models/marks_table_data.dart';
+import 'package:my_app/models/scan_workflow.dart';
 import 'package:my_app/screens/verification_screen.dart';
 import 'package:my_app/services/result_service.dart';
 
@@ -47,6 +48,114 @@ class _FakeResultService implements ResultService {
 }
 
 void main() {
+  for (final width in [320.0, 1280.0]) {
+    testWidgets(
+        'Verification rows g and Total align with question columns at width $width',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(MaterialApp(
+          home: VerificationScreen(
+              marksTableData: MarksTableData.empty(tableType: '1-4'))));
+      await tester.pumpAndSettle();
+      for (final q in MarksTableData.type1Questions) {
+        final header = tester.getRect(find.byKey(ValueKey('heading-$q')));
+        for (final key in ['mark-$q-a', 'mark-$q-g', 'total-$q']) {
+          final cell = tester.getRect(find.byKey(ValueKey(key)));
+          expect(cell.left, closeTo(header.left, .1));
+          expect(cell.right, closeTo(header.right, .1));
+        }
+      }
+      expect(find.text('Grand\nTotal'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('Exam maximum highlights confident OCR until corrected',
+      (tester) async {
+    final reviewed = <MarksTableData>[];
+    final data = MarksTableData.empty(tableType: '1-4').copyWith(cellMarks: {
+      '1': {'a': '15'}
+    }, cellResults: {
+      '1': {
+        'a': const CellOcrResult(
+            text: '15',
+            confidence: .99,
+            needsReview: false,
+            teacherReviewed: true,
+            maxMark: 20)
+      }
+    });
+    final workflow = ScanWorkflow(
+        rollNo: 'ROLL001',
+        description: 'Final',
+        groups: const ['1-4'],
+        maximumFor: (_, __) => 10,
+        validate: (_, __) => null,
+        review: (data) async {
+          reviewed.add(data);
+        });
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(marksTableData: data, workflow: workflow)));
+    await tester.pumpAndSettle();
+    Color? color() => (tester
+            .widget<Container>(find.byKey(const ValueKey('mark-1-a')))
+            .decoration! as BoxDecoration)
+        .color;
+    expect(color(), Colors.red.shade100);
+    await tester.tap(find.text('Verify & Submit'));
+    await tester.pumpAndSettle();
+    expect(reviewed, isEmpty);
+    expect(find.textContaining('exceeds its maximum of 10'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('edit-1-a')));
+    await tester.tap(find.byKey(const ValueKey('edit-1-a')));
+    await tester.pumpAndSettle();
+    expect(find.text('Maximum 10'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('edit-mark-input')), '11');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Exceeds the maximum mark.'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('edit-mark-input')), '08');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(color(), isNull);
+    await tester.tap(find.text('Verify & Submit'));
+    await tester.pumpAndSettle();
+    expect(reviewed.single.getMark('1', 'a'), '08');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Manual marks update the maximum highlight while typing',
+      (tester) async {
+    final workflow = ScanWorkflow(
+        rollNo: 'ROLL001',
+        description: 'Final',
+        groups: const ['1-4'],
+        maximumFor: (_, __) => 10,
+        validate: (_, __) => null,
+        review: (_) async {});
+    await tester.pumpWidget(MaterialApp(
+        home: VerificationScreen(
+            marksTableData: MarksTableData.empty(tableType: '1-4'),
+            workflow: workflow)));
+    await tester.pumpAndSettle();
+    final field = find.byKey(const ValueKey('manual-1-g'));
+    Color? color() => (tester
+            .widget<Container>(find.byKey(const ValueKey('mark-1-g')))
+            .decoration! as BoxDecoration)
+        .color;
+    await tester.ensureVisible(field);
+    await tester.enterText(field, '11');
+    await tester.pump();
+    expect(color(), Colors.red.shade100);
+    await tester.enterText(field, '10');
+    await tester.pump();
+    expect(color(), isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Manual entry rejects decimals instead of silently saving N/A',
       (tester) async {
     final service = _FakeResultService();
@@ -215,7 +324,10 @@ void main() {
     expect(blank.needsAttention, isFalse);
     const lowConfidenceNumber = CellOcrResult(
         text: '15', confidence: .2, needsReview: true, maxMark: 10);
-    expect(lowConfidenceNumber.needsAttention, isFalse);
+    expect(lowConfidenceNumber.needsAttention, isTrue);
+    const withinMaximum = CellOcrResult(
+        text: '10', confidence: .2, needsReview: true, maxMark: 10);
+    expect(withinMaximum.needsAttention, isFalse);
     const rejectedText =
         CellOcrResult(text: 'o7', confidence: .99, needsReview: false);
     expect(rejectedText.needsAttention, isTrue);

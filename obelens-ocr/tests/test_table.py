@@ -3,6 +3,7 @@ import io
 import json
 import threading
 import unittest
+from pathlib import Path
 from http.client import HTTPConnection
 from http.server import HTTPServer
 import cv2
@@ -12,6 +13,7 @@ from ocr import MarkRecognizer
 from ocr.cell_extractor import detect_corners, extract_cells, ExtractionError
 from ocr.full_table import process_table
 from ocr.server import make_handler
+from scripts.generate_detection_fixtures import bend, rotate, faint_grid
 
 def grid():
     image = np.full((850,650,3),255,np.uint8)
@@ -29,6 +31,76 @@ class Backend:
 
 
 class ExtractionTests(unittest.TestCase):
+    def test_captured_table_excludes_extension_and_preserves_cell_positions(self):
+        image = cv2.imread(str(Path(__file__).parent/'fixtures/answer_table_q5_q8.jpg'))
+        corners = np.asarray(detect_corners(image))*[image.shape[1]-1,image.shape[0]-1]
+        np.testing.assert_allclose(corners,[[137,184],[944,165],[984,1336],[117,1339]],atol=28)
+        cells = extract_cells(image,table_type='5-8').cells
+        self.assertEqual(len(cells),28)
+        # Independently measured centers in the supplied photo, including blank cells.
+        for row, y in enumerate([425,545,660,775,895,1015,1145]):
+            for column, x in enumerate([445,600,755,900]):
+                cell = cells[row*4+column]
+                self.assertEqual((cell.question,cell.part),(str(5+column),'abcdefg'[row]))
+                left,top,right,bottom = cell.bounds
+                self.assertTrue(left < x < right and top < y < bottom,
+                                f'Q{cell.question}{cell.part}: {cell.bounds}')
+                self.assertLess(right,1000)  # Grand Total starts beyond the main Q8 border.
+
+    def test_faint_grid_excludes_grand_total_and_preserves_first_mark(self):
+        for shade in (80,200):
+            image, corners = faint_grid(shade)
+            for angle in (0,12):
+                with self.subTest(shade=shade,angle=angle):
+                    tilted, expected = rotate(image,corners,angle)
+                    actual = np.asarray(detect_corners(tilted))*[tilted.shape[1]-1,tilted.shape[0]-1]
+                    np.testing.assert_allclose(actual,expected,atol=14)
+                    cells = extract_cells(tilted,table_type='5-8').cells
+                    self.assertEqual(len(cells),28)
+                    self.assertEqual((cells[0].question,cells[0].part),('5','a'))
+                    self.assertGreater(np.count_nonzero(cells[0].image<90),50)
+                    for cell in cells[1:]:
+                        self.assertEqual(np.count_nonzero(cell.image<90),0)
+
+    def test_rotated_broken_grid_preserves_cell_identities(self):
+        image = grid()
+        image[45:56,45:556] = 255
+        image[45:796,545:556] = 255
+        corners = np.float32([[50,50],[550,50],[550,790],[50,790]])
+        for angle in (-35,32):
+            with self.subTest(angle=angle):
+                tilted, expected = rotate(image, corners, angle)
+                actual = np.asarray(detect_corners(tilted))*[tilted.shape[1]-1,tilted.shape[0]-1]
+                np.testing.assert_allclose(actual,expected,atol=14)
+                cells = extract_cells(tilted,table_type='5-8').cells
+                self.assertEqual((cells[0].question,cells[0].part),('5','a'))
+                self.assertGreater(np.count_nonzero(cells[0].image<100),100)
+
+    def test_curved_grid_is_straightened_before_cropping(self):
+        curved = bend(grid())
+        for manual in (False,True):
+            with self.subTest(manual=manual):
+                extraction = extract_cells(curved, corners=[[50,50],[550,50],[550,790],[50,790]] if manual else None)
+                self.assertEqual(len(extraction.cells),28)
+                self.assertGreater(np.count_nonzero(extraction.cells[0].image<100),100)
+                for cell in extraction.cells[1:]:
+                    self.assertLess(np.count_nonzero(cell.image<100),30)
+
+    def test_curved_rotated_table_keeps_all_28_marks_in_their_cells(self):
+        image = grid()
+        for row in range(7):
+            for column in range(4):
+                center = (240+100*column,190+80*row)
+                color = (30+20*row,40+40*column,120)
+                cv2.rectangle(image,(center[0]-4,center[1]-10),(center[0]+4,center[1]+10),color,-1)
+        image,_ = rotate(bend(image),np.float32([[50,50],[550,50],[550,790],[50,790]]),24)
+        extraction = extract_cells(image,table_type='5-8')
+        for cell in extraction.cells:
+            row,column = ord(cell.part)-ord('a'),int(cell.question)-5
+            color = np.array([30+20*row,40+40*column,120])
+            matching = np.max(abs(cell.image.astype(int)-color),axis=2)<10
+            self.assertGreater(np.count_nonzero(matching),300,f'Q{cell.question}{cell.part} lost its mark')
+
     def test_grid_and_original_coordinates(self):
         cells = extract_cells(grid()).cells
         self.assertEqual(len(cells),28)

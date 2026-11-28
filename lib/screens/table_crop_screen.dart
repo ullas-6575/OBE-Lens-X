@@ -173,7 +173,7 @@ class _TableCropScreenState extends State<TableCropScreen> {
                       style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 6),
                   const Text(
-                      'Keep the header, rows a–g and total row inside the corners. Exclude the small Grand Total extension.',
+                      'Place the top corners on the Marks (on) / question-number header and the bottom corners below the Total row. Include rows a–g; exclude the signature area and the small Grand Total extension.',
                       textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   Expanded(
