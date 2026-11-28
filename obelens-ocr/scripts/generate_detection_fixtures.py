@@ -106,6 +106,8 @@ def fixtures():
     yield 'faint_rotated_grid', tilted, points
     captured = cv2.imread(str(Path(__file__).resolve().parents[1]/'tests/fixtures/answer_table_q5_q8.jpg'))
     yield 'captured_q5_q8', captured, np.float32([[137,184],[944,165],[984,1336],[117,1339]])
+    perspective = cv2.imread(str(Path(__file__).resolve().parents[1]/'tests/fixtures/answer_table_perspective.jpg'))
+    yield 'captured_perspective', perspective, np.float32([[178,467],[851,455],[918,1469],[133,1484]])
     blank = np.full((400,400,3),255,np.uint8)
     yield 'blank_reject', blank, False
     rectangle = blank.copy()
