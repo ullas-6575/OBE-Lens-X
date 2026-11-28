@@ -38,8 +38,10 @@ RUN apt-get update \
 COPY obelens-ocr/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY obelens-ocr/ocr ./ocr
+COPY assets/ocr_model/obelens.onnx ./models/recognition/inference.onnx
+COPY assets/ocr_model/inference.yml ./models/recognition/inference.yml
 
-# Inference caches are writable; Compose mounts the supplied model read-only.
+# Inference caches are writable; Compose mounts the local model read-only.
 RUN chown -R app:app /app
 USER app
 

@@ -88,14 +88,15 @@ flowchart TD
     Process --> Verify[Verify / edit complete marks table]
     Verify -->|Bad crop: Back| Crop
     Crop -->|Bad photograph: Back| Photo
-    Verify --> Summary[Submission summary]
+    Verify -->|Four answered questions| Summary[Choose three questions]
+    Verify -->|Up to three answered questions| Save[Save verified result]
     Summary -->|Back| Verify
-    Summary --> Save[Save verified result]
+    Summary --> Save
     Save -->|Failure: retain work / retry| Summary
-    Save -->|Missing group| Group
-    Save -->|Next student| Student
-    Save -->|Finished| Results[All exam results]
-    Exam --> Results
+    Save --> Complete[Part complete popup]
+    Complete -->|Scan other part| Group
+    Complete -->|Done| Exam
+    Exam --> Results[All exam results]
     Results --> Detail[Student result details]
     Exam --> Report[Completeness / CO attainment / PO contribution]
     Report --> Preview[Report preview]
@@ -130,13 +131,17 @@ Android recognition.
 
 For a future compatible ONNX model, bundle its asset and set
 `--dart-define=OCR_MODEL_ASSET=assets/ocr_model/<version>.onnx`; the default stays
-`assets/ocr_model/inference.onnx`. Include the new asset in `pubspec.yaml`. If the
+`assets/ocr_model/obelens.onnx`. Include the new asset in `pubspec.yaml`. If the
 model's tensor format or decoding changes, implement a new recognizer adapter
 behind the existing OCR contract and validate Android compatibility. No UI or
-attainment rewrite is needed. Desktop/web recognition loads a compatible local
-PaddleOCR inference model from `obelens-ocr/models/recognition/`, or a directory
-passed with `python -m ocr.server --model-dir /path/to/model`. Model weights are
-never downloaded automatically. Teacher corrections update results only.
+attainment rewrite is needed. All default paths use the fine-tuned
+`obelens` model at `assets/ocr_model/obelens.onnx`, supplied in
+`obelens_stage2_best_accuracy/`. Desktop/web recognition keeps the original
+`obelens-ocr/models/recognition/` directory with identical weights named
+`inference.onnx` and the export's `inference.yml`, loaded with PaddleOCR's
+`onnxruntime` engine, or a directory passed with
+`python -m ocr.server --model-dir /path/to/model`. Model weights are never
+downloaded automatically. Teacher corrections update results only.
 
 ## Three questions per group
 

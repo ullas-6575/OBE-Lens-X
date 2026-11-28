@@ -11,7 +11,7 @@ import '../models/table_selection.dart';
 BaseOcrService createDefaultOcrService() => !kIsWeb && Platform.isAndroid
     ? const LocalOcrService(
         modelAssetPath: String.fromEnvironment('OCR_MODEL_ASSET',
-            defaultValue: 'assets/ocr_model/inference.onnx'))
+            defaultValue: 'assets/ocr_model/obelens.onnx'))
     : const PythonOcrService();
 
 /// Service interface for Optical Character Recognition on marks tables
@@ -92,7 +92,7 @@ class LocalOcrService implements BaseOcrService, TableDetectionService {
   final String modelAssetPath;
   final String dictionaryAssetPath;
   const LocalOcrService({
-    this.modelAssetPath = 'assets/ocr_model/inference.onnx',
+    this.modelAssetPath = 'assets/ocr_model/obelens.onnx',
     this.dictionaryAssetPath = 'assets/ocr_model/ppocrv5_en_dict.txt',
   });
 
@@ -216,15 +216,13 @@ class PythonOcrService implements BaseOcrService, TableDetectionService {
                 : Platform.isAndroid
                     ? 'http://10.0.2.2:8765'
                     : 'http://127.0.0.1:8765');
-    if (imagePath != null &&
-        await XFile(imagePath).length() > 10 * 1024 * 1024) {
+    if (imagePath == null || imagePath.isEmpty) {
+      throw const FormatException('Choose a photograph before OCR.');
+    }
+    if (await XFile(imagePath).length() > 10 * 1024 * 1024) {
       throw const FormatException('Select an image smaller than 10 MB.');
     }
-    final bytes = imagePath == null
-        ? (await rootBundle.load('assets/sample_marksheet.png'))
-            .buffer
-            .asUint8List()
-        : await XFile(imagePath).readAsBytes();
+    final bytes = await XFile(imagePath).readAsBytes();
     if (bytes.length > 10 * 1024 * 1024) {
       throw const FormatException('Select an image smaller than 10 MB.');
     }

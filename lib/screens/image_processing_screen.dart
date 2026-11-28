@@ -133,7 +133,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
     );
   }
 
-  /// Builds preview of the captured image or a realistic visual replica of the marksheet rubric table
+  /// Preview the selected photograph when available.
   Widget _buildTablePreview() {
     final hasLocalFile = selectedImageExists(widget.imagePath);
 
@@ -153,15 +153,7 @@ class _ImageProcessingScreenState extends State<ImageProcessingScreen> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Image.asset(
-        'assets/sample_marksheet.png',
-        fit: BoxFit.contain,
-        width: double.infinity,
-        height: double.infinity,
-      ),
-    );
+    return const Center(child: Icon(Icons.image_not_supported_outlined));
   }
 
   @override

@@ -6,7 +6,7 @@ have independent expected corners; the generator checks those before exporting
 Linux results. Tests compare detection/fallback decisions and corners within four
 working-image pixels. Fixtures include broken outer borders, perspective,
 missing internal lines, a Grand Total extension, noise/shadows, large camera
-images, the bundled reference, and non-table negatives.
+images and non-table negatives.
 
 From the repository root:
 

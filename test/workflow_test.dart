@@ -5,6 +5,7 @@ import 'package:my_app/models/marks_table_data.dart';
 import 'package:my_app/screens/image_source_screen.dart';
 import 'package:my_app/services/auth_service.dart';
 import 'package:my_app/services/ocr_service.dart';
+import 'package:my_app/workflow/exam_pages.dart';
 import 'package:my_app/workflow/models.dart';
 import 'package:my_app/workflow/report_export.dart';
 import 'package:my_app/workflow/report_page.dart';
@@ -90,6 +91,8 @@ void main() {
     await tester.pumpAndSettle();
     final maxMark = find.descendant(
         of: find.byType(DataTable).first, matching: find.byType(TextField));
+    expect(tester.widget<TextField>(maxMark.first).controller!.text, isEmpty);
+    expect(tester.widget<TextField>(maxMark.first).decoration!.hintText, '0');
     await tester.enterText(maxMark.first, '10');
     for (final entry in {
       'Student score threshold (%)': '70',
@@ -107,9 +110,60 @@ void main() {
     await tapVisible(tester, 'Save exam configuration');
     expect(repo.examRows.single.name, 'Final');
     expect(repo.examRows.single.questions.single.co, 'CO1');
+    expect(
+        repo.examRows.single.countedMaximum({
+          'table_type': '5-8',
+          'marks': <String, dynamic>{},
+        }),
+        10);
     expect(repo.examRows.single.policy.scoreThreshold, 70);
     expect(repo.examRows.single.policy.levelBounds, [45, 65, 75, 85]);
     expect(find.text('Final'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Maximum marks keep saved values and start unset cells empty',
+      (tester) async {
+    final repo = seededRepository();
+    await tester.pumpWidget(MaterialApp(
+        initialRoute: '/edit',
+        routes: {
+          '/': (_) => const Scaffold(body: Text('Saved')),
+          '/edit': (_) => ExamEditor(
+              repository: repo, course: sampleCourse, exam: sampleExam),
+        }));
+    await tester.pumpAndSettle();
+    final fields = find.descendant(
+        of: find.byType(DataTable).first, matching: find.byType(TextField));
+    expect(tester.widget<TextField>(fields.first).controller!.text, '10');
+    await tester.tap(fields.at(1));
+    expect(tester.widget<TextField>(fields.at(1)).controller!.text, isEmpty);
+    expect(tester.widget<TextField>(fields.at(1)).decoration!.hintText, '0');
+    await tester.enterText(fields.at(1), '6');
+    await tester.tap(fields.first);
+    expect(tester.widget<TextField>(fields.first).controller!.text, '10');
+    await tester.enterText(fields.first, '12');
+    await tester.tap(fields.at(1));
+    expect(tester.widget<TextField>(fields.at(1)).controller!.text, '6');
+    expect(tester.widget<TextField>(fields.first).controller!.text, '12');
+    await tester.enterText(fields.at(1), '');
+    final save = find.widgetWithText(FilledButton, 'Save exam configuration');
+    await tester.scrollUntilVisible(save, 200,
+        scrollable: find
+            .descendant(
+                of: find.byType(ListView).last,
+                matching: find.byType(Scrollable))
+            .first);
+    tester.widget<FilledButton>(save).onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.text('Saved'), findsOneWidget);
+    expect(repo.examRows.single.questions.single.maxMark, 12);
+    expect(
+        repo.examRows.single.countedMaximum({
+          'table_type': '1-4',
+          'marks': <String, dynamic>{},
+        }),
+        12);
     expect(tester.takeException(), isNull);
   });
 

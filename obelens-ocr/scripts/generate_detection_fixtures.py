@@ -55,8 +55,6 @@ def fixtures():
     # Deterministic JPEG artifacts exercise the same decoded image in both cores.
     _, encoded = cv2.imencode('.jpg', shaded, [cv2.IMWRITE_JPEG_QUALITY,65])
     yield 'jpeg_shadow', cv2.imdecode(encoded,cv2.IMREAD_COLOR), corners
-    sample = Path(__file__).resolve().parents[2]/'assets/sample_marksheet.png'
-    yield 'reference_sheet', cv2.imread(str(sample)), None
     blank = np.full((400,400,3),255,np.uint8)
     yield 'blank_reject', blank, False
     rectangle = blank.copy()

@@ -1,23 +1,26 @@
 """Verify the running Compose UI, proxy, detection and real OCR with stdlib only.
 
-Usage: python3 docker/smoke_test.py [http://localhost:8080]
+Usage: python3 docker/smoke_test.py path/to/table.png [http://localhost:8080]
 """
 import base64
+import argparse
 import json
 from pathlib import Path
-import sys
 import urllib.request
 
 
 def main():
-    base = (sys.argv[1] if len(sys.argv) > 1 else 'http://localhost:8080').rstrip('/')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('image', type=Path)
+    parser.add_argument('base', nargs='?', default='http://localhost:8080')
+    args = parser.parse_args()
+    base = args.base.rstrip('/')
     with urllib.request.urlopen(base + '/', timeout=15) as response:
         assert b'<title>OBE-Lens</title>' in response.read(), 'Flutter UI not served'
     with urllib.request.urlopen(base + '/health', timeout=15) as response:
         assert json.load(response)['status'] == 'ok'
 
-    image = Path(__file__).resolve().parents[1] / 'assets/sample_marksheet.png'
-    encoded = base64.b64encode(image.read_bytes()).decode('ascii')
+    encoded = base64.b64encode(args.image.read_bytes()).decode('ascii')
 
     def post(path, **fields):
         request = urllib.request.Request(
@@ -29,7 +32,7 @@ def main():
             return json.load(response)
 
     detection = post('/ocr/detect', rotation=0)
-    assert detection['detected'], 'Reference table was not detected'
+    assert detection['detected'], 'Supplied table was not detected'
     result = post('/ocr/table', table_type='5-8', rotation=0,
                   normalized_corners=detection['normalized_corners'])
     assert result['tableType'] == '5-8'

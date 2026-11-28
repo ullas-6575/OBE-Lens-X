@@ -53,9 +53,10 @@ A. Run with Docker (recommended)
   open http://localhost:8080          # http://localhost:PORT if OBELENS_PORT set
   docker compose down
 
-Before starting, place your compatible PaddleOCR inference files
-(inference.json, inference.pdiparams and inference.yml) in
-obelens-ocr/models/recognition/. Compose mounts them read-only.
+The fine-tuned model is named obelens: assets/ocr_model/obelens.onnx.
+Python keeps identical weights in obelens-ocr/models/recognition/inference.onnx
+plus inference.yml. Compose mounts this original service directory read-only;
+the standalone image includes the model too.
 The first build downloads Flutter and Python wheels, and takes several minutes
 and a few GB. Model weights are supplied locally and are never auto-downloaded.
 Health: http://localhost:8080/health (through nginx) or the ocr container's
@@ -64,10 +65,10 @@ http://127.0.0.1:8765/health for the API-only image.
 OCR API image only:
   docker build --platform linux/amd64 --target ocr -t obelens-ocr .
   docker run --rm --init --platform linux/amd64 -p 127.0.0.1:8765:8765 \
-    -v "$PWD/obelens-ocr/models/recognition:/app/models/recognition:ro" obelens-ocr
+    obelens-ocr
 
 Optional end-to-end smoke test (needs host Python 3, no extra packages):
-  python docker/smoke_test.py
+  python docker/smoke_test.py path/to/your-table.png
 
 
 B. Run with local tools
@@ -78,9 +79,8 @@ B. Run with local tools
    macOS/Linux:  source .venv/bin/activate
    pip install -r obelens-ocr/requirements.txt
 
-   # Supply your local PaddleOCR inference files in:
-   # obelens-ocr/models/recognition/
-   # Required: inference.json, inference.pdiparams and inference.yml
+   # The fine-tuned obelens model is in obelens-ocr/models/recognition/.
+   # Required by Python: inference.onnx and inference.yml
 
    cd obelens-ocr
    python -m ocr.server            # http://127.0.0.1:8765, GET /health
@@ -101,7 +101,7 @@ B. Run with local tools
    --dart-define=OCR_API_URL=http://127.0.0.1:8765).
 
    Android on-device OCR uses the bundled asset:
-   assets/ocr_model/inference.onnx (no Python service needed).
+   assets/ocr_model/obelens.onnx (no Python service needed).
 
 
 4. Checks before you file a bug
@@ -116,6 +116,7 @@ B. Run with local tools
 5. Python dependency notes
 --------------------------
 - PaddleOCR 3.7.0 / PaddlePaddle 3.3.1 / OpenCV 4.12.0.88 are pinned and verified.
+- ONNX Runtime 1.30.0 runs the fine-tuned export through PaddleOCR on CPU.
 - Pillow must stay on the 13.x line: 13.0.0 fixes image-decoder memory-safety
   bugs (CVE-2026-112394, CVE-2026-112395, CVE-2026-114501) present in every
   older release.
@@ -125,8 +126,8 @@ B. Run with local tools
 
 6. Troubleshooting
 ------------------
-- "OCR inference failed": supply all three compatible inference files in
-  obelens-ocr/models/recognition/ (or your --model-dir), then restart the service.
+- "OCR inference failed": check inference.onnx and inference.yml in
+  obelens-ocr/models/recognition/ (or your --model-dir), install requirements and restart OCR.
 - Browser cannot reach the API: start the OCR service, or use Compose where
   nginx proxies /ocr/ to it on the same origin.
 - Login fails: confirm the Supabase migrations were applied and that email

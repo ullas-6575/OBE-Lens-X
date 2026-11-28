@@ -14,7 +14,7 @@ from ocr.cell_extractor import detect_corners, extract_cells
 from ocr.full_table import process_table
 from ocr.server import make_handler
 from ocr.table_selection import orient_image, pixel_corners
-from test_table import grid, Backend, SAMPLE
+from test_table import grid, Backend
 
 
 class SelectionTests(unittest.TestCase):
@@ -108,7 +108,8 @@ class DetectionApiTests(unittest.TestCase):
             finally:
                 connection.close()
 
-        image = base64.b64encode(SAMPLE.read_bytes()).decode()
+        _, encoded = cv2.imencode('.png', grid())
+        image = base64.b64encode(encoded).decode()
         try:
             with patch.object(recognizer, 'predict_mark', side_effect=AssertionError('Detection must not run OCR')):
                 status, detection = post('/ocr/detect', {'image_base64': image})

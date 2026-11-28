@@ -13,8 +13,6 @@ OBE-Lens helps teachers turn photographs of handwritten exam marks into reviewed
 
 Administrators manage registrations and course access. Assigned teachers configure exams, scan their question groups, verify OCR output, and calculate attainment. Students are identified by roll number in results; there is no student login role.
 
-This README describes the current source, including the shared-upload and question-selection migrations. Applying those migrations to a hosted Supabase project is a separate setup step.
-
 ## Contents
 
 - [Overview and objectives](#overview-and-objectives)
@@ -30,7 +28,7 @@ This README describes the current source, including the shared-upload and questi
 - [Database design](#database-design)
 - [OCR HTTP API](#ocr-http-api)
 - [Application usage](#application-usage)
-- [Preview and sample input](#preview-and-sample-input)
+- [Local preview](#local-preview)
 - [Testing](#testing)
 - [CI pipeline](#ci-pipeline)
 - [Build and deployment](#build-and-deployment)
@@ -69,20 +67,20 @@ Its objectives are to:
 - Automatic corner detection, four-corner manual adjustment, 90-degree rotation, and perspective correction.
 - Local Android recognition using ONNX Runtime; Python OCR for desktop and browser clients.
 - Cell crop evidence, raw predictions, confidence flags, and optional manual corrections.
-- One- or two-digit integer marks, preserved leading zeroes, and `N/A` for blank or unrecognized cells. The recognizer does not guess letters into digits.
+- English digits (`0–9`) only, one- or two-digit integer marks, preserved leading zeroes, and `N/A` for blank or unrecognized cells. The model suppresses non-digit output classes and retains its original digit confidence scores.
 - **Inference only:** no training, fine-tuning, dataset collection, or automatic model-weight downloads.
 
 ### Shared marking and question choice
 
 The database stores one group result per **exam + roll number + question group**. The results worksheet combines both groups into one student row.
 
-| Situation within a four-question group | Current behavior |
-| --- | --- |
-| Exactly three questions answered | Count those three automatically; no selection prompt. |
-| All four answered | Require the teacher to choose exactly three; do not automatically choose the highest scores. |
-| Fewer than three answered | Count the answers present and award zero for missing answer slots. |
-| Existing group uploaded again | Ask **Replace marks** or **Keep previous**. |
-| Another teacher changes a group during replacement | Reject the stale confirmation and ask again using the latest revision. |
+| Situation within a four-question group             | Current behavior                                                                             |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Exactly three questions answered                   | Count those three automatically; no selection prompt.                                        |
+| All four answered                                  | Require the teacher to choose exactly three; do not automatically choose the highest scores. |
+| Fewer than three answered                          | Count the answers present and award zero for missing answer slots.                           |
+| Existing group uploaded again                      | Ask **Replace marks** or **Keep previous**.                                                  |
+| Another teacher changes a group during replacement | Reject the stale confirmation and ask again using the latest revision.                       |
 
 A question is answered if any part has a numeric mark, including `0`; a question containing only `N/A` is unanswered. All raw marks remain stored, including marks in an uncounted fourth question. Replacing one group preserves the other group.
 
@@ -105,19 +103,19 @@ The calculation code is in [attainment.dart](lib/workflow/attainment.dart), [mod
 
 Versions below come from repository configuration and lockfiles; they are not claims of successful builds on every platform.
 
-| Layer | Technology and configured version | Purpose |
-| --- | --- | --- |
-| Client | Flutter 3.24.0 in Docker/CI; Dart `>=3.5.0 <4.0.0` | Material UI and shared application logic |
-| Authentication/data | `supabase_flutter` 2.15.4 | Auth sessions, PostgREST queries, and save RPCs |
-| Database | Supabase PostgreSQL; local config targets PostgreSQL 17 | Academic entities, validation, access policies, and revisions |
-| Client packages | `image_picker` 1.1.2, `http` 1.6.0, `google_fonts` 6.3.0 | Image input, OCR transport, and typography |
-| File export | `share_plus` 10.1.4, `file_selector_platform_interface` 2.6.2, `web` 1.1.1 | Save/share spreadsheet files |
-| Android | Kotlin 1.9.24, Android Gradle Plugin 8.1.1, Gradle 8.3 | Native detector and recognizer integration |
-| Android inference | ONNX Runtime 1.21.1, OpenCV 4.12.0, ExifInterface 1.3.7 | On-device cell recognition and image geometry |
-| OCR service | Python 3.11 Docker base, PaddleOCR 3.7.0, PaddlePaddle 3.3.1 | CPU inference with a supplied local recognition model |
-| Python image processing | OpenCV contrib 4.12.0.88, NumPy `>=2,<2.3`, Pillow `>=13,<14` | Detection, cropping, and image decoding |
-| Browser delivery | Nginx `stable-alpine`, Docker Compose | Flutter web files and same-origin OCR proxy |
-| Verification | Flutter Test, Python `unittest`, SQL assertions, JUnit 4.13.2 | UI/domain, API, database, and detector-parity tests |
+| Layer                   | Technology and configured version                                                 | Purpose                                                       |
+| ----------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Client                  | Flutter 3.24.0 in Docker/CI; Dart `>=3.5.0 <4.0.0`                                | Material UI and shared application logic                      |
+| Authentication/data     | `supabase_flutter` 2.15.4                                                         | Auth sessions, PostgREST queries, and save RPCs               |
+| Database                | Supabase PostgreSQL; local config targets PostgreSQL 17                           | Academic entities, validation, access policies, and revisions |
+| Client packages         | `image_picker` 1.1.2, `http` 1.6.0, `google_fonts` 6.3.0                          | Image input, OCR transport, and typography                    |
+| File export             | `share_plus` 10.1.4, `file_selector_platform_interface` 2.6.2, `web` 1.1.1        | Save/share spreadsheet files                                  |
+| Android                 | Kotlin 1.9.24, Android Gradle Plugin 8.1.1, Gradle 8.3                            | Native detector and recognizer integration                    |
+| Android inference       | ONNX Runtime 1.21.1, OpenCV 4.12.0, ExifInterface 1.3.7                           | On-device cell recognition and image geometry                 |
+| OCR service             | Python 3.11 Docker base, PaddleOCR 3.7.0, PaddlePaddle 3.3.1, ONNX Runtime 1.30.0 | CPU inference with the shared fine-tuned recognition model    |
+| Python image processing | OpenCV contrib 4.12.0.88, NumPy `>=2,<2.3`, Pillow `>=13,<14`                     | Detection, cropping, and image decoding                       |
+| Browser delivery        | Nginx `stable-alpine`, Docker Compose                                             | Flutter web files and same-origin OCR proxy                   |
+| Verification            | Flutter Test, Python `unittest`, SQL assertions, JUnit 4.13.2                     | UI/domain, API, database, and detector-parity tests           |
 
 Sources: [pubspec.yaml](pubspec.yaml), [pubspec.lock](pubspec.lock), [Python requirements](obelens-ocr/requirements.txt), [Android configuration](android/app/build.gradle), and [CI](.github/workflows/ci.yml).
 
@@ -164,12 +162,11 @@ flowchart LR
 ├── linux/, windows/, web/                  # Other included Flutter platform targets
 ├── assets/
 │   ├── branding/                          # Master app icon
-│   ├── ocr_model/                         # Bundled Android ONNX model and dictionary
+│   ├── ocr_model/                         # Shared fine-tuned ONNX model, config and dictionary
 │   ├── fonts/                             # FreeSans and its license notices
-│   └── sample_marksheet.png               # Example OCR input
 ├── obelens-ocr/
 │   ├── ocr/                               # Detection, extraction, inference, HTTP API
-│   ├── models/recognition/                 # User-supplied Paddle inference files; ignored
+│   ├── models/recognition/                 # obelens model copy for the Python service
 │   ├── scripts/                           # Single-image checks and detection fixtures
 │   ├── tests/                             # Python unit/API tests
 │   └── requirements.txt
@@ -194,13 +191,13 @@ The checked-in targets are Android, Linux, Windows, and web. Native iOS/macOS pr
 
 Choose a route before installing tools:
 
-| Route | Requirements |
-| --- | --- |
-| Docker browser app | Git; Docker Engine/Desktop with Compose; a compatible local Paddle inference model; configured Supabase project |
-| Android app | Flutter 3.24.0-compatible SDK; JDK 17; Android SDK 35; device/emulator at API 24 or later; configured Supabase project |
-| Linux/Windows app | Flutter SDK and the platform's desktop C++ toolchain; Python OCR service locally or over HTTP(S); configured Supabase project |
-| Python OCR development | Python 3.11, a virtual environment, packages from `obelens-ocr/requirements.txt`, and compatible model files |
-| Database tests | Unix-like environment, Bash, Python 3, and PostgreSQL tools: `pg_config`, `initdb`, `pg_ctl`, and `psql`; run as a non-root user |
+| Route                  | Requirements                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Docker browser app     | Git; Docker Engine/Desktop with Compose; configured Supabase project                                                             |
+| Android app            | Flutter 3.24.0-compatible SDK; JDK 17; Android SDK 35; device/emulator at API 24 or later; configured Supabase project           |
+| Linux/Windows app      | Flutter SDK and the platform's desktop C++ toolchain; Python OCR service locally or over HTTP(S); configured Supabase project    |
+| Python OCR development | Python 3.11, a virtual environment, packages from `obelens-ocr/requirements.txt`, and compatible model files                     |
+| Database tests         | Unix-like environment, Bash, Python 3, and PostgreSQL tools: `pg_config`, `initdb`, `pg_ctl`, and `psql`; run as a non-root user |
 
 Run `flutter doctor -v` for native toolchain diagnostics. The Linux CI installs:
 
@@ -233,14 +230,14 @@ cd CSE-3200
 
 Earlier migrations restrict mappings to CO1–CO4; existing mappings outside that range must be corrected before those migrations can run. The Docker stack does **not** start Supabase or apply migrations. Hosted schema state, email delivery, and administrator provisioning must be verified separately.
 
-### 3. Supply the appropriate inference model
+### 3. Shared fine-tuned inference model
 
-| Client path | Model inputs |
-| --- | --- |
-| Android | `assets/ocr_model/inference.onnx` and `assets/ocr_model/ppocrv5_en_dict.txt`, included by `pubspec.yaml` |
-| Python API for desktop/web | `obelens-ocr/models/recognition/inference.json`, `inference.pdiparams`, and `inference.yml`; weights are ignored by Git |
+| Client path                | Model inputs                                                                                                                             |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Android                    | `assets/ocr_model/obelens.onnx` and `assets/ocr_model/ppocrv5_en_dict.txt`, included by `pubspec.yaml`                                   |
+| Python API for desktop/web | Identical ONNX weights at `obelens-ocr/models/recognition/inference.onnx`, with `inference.yml` for PaddleOCR preprocessing and decoding |
 
-Supply compatible `en_PP-OCRv5_mobile_rec` Paddle inference files for the Python adapter. The directory may contain extra files, but all three named inputs must exist. Use `--model-dir` for another location.
+The default model on every platform is named `obelens`, supplied in `obelens_stage2_best_accuracy/` and fine-tuned from `en_PP-OCRv5_mobile_rec`. Its trained weights are preserved, with an output mask allowing only English digits (`0–9`) and the CTC blank. The restricted ONNX model replaces the bundled model in `assets/ocr_model/`; the full dictionary remains to preserve class indices. The Python service retains its original `models/recognition/` directory with an identical copy. It explicitly uses PaddleOCR's `onnxruntime` engine, so it requires no `inference.json` or Paddle parameter files. Use `--model-dir` only to select another compatible directory containing `inference.onnx` and `inference.yml`. See [model provenance](assets/ocr_model/README.md).
 
 For Android, replace the bundled compatible ONNX model/dictionary or select another bundled model through `OCR_MODEL_ASSET`. The current adapter builds a `[1, 3, 48, 320]` input tensor and expects CTC-style output matching the dictionary. A different model format needs an adapter change, not just a filename change. Include any alternate asset in `pubspec.yaml`.
 
@@ -263,7 +260,7 @@ Android on-device OCR does not require the Python environment; install it when d
 
 ### Start the OCR service — terminal 1
 
-After supplying the Paddle model files:
+Start the service with the bundled fine-tuned model:
 
 ```bash
 source .venv/bin/activate
@@ -291,7 +288,7 @@ For Linux/Windows using a remote OCR API, also pass `--dart-define=OCR_API_URL=h
 
 ### Standard browser stack
 
-Supply the Paddle model and configure the Supabase schema first:
+Configure the Supabase schema first; the fine-tuned OCR model is included:
 
 ```bash
 docker compose up --build -d
@@ -299,7 +296,7 @@ docker compose ps
 curl http://localhost:8080/health
 ```
 
-Open **http://localhost:8080**. Nginx serves Flutter web and forwards `/ocr/` and `/health` to the OCR container. Only the web port is published, bound to loopback by default. The OCR service mounts your model directory read-only.
+Open **http://localhost:8080**. Nginx serves Flutter web and forwards `/ocr/` and `/health` to the OCR container. Only the web port is published, bound to loopback by default. The OCR service mounts `obelens-ocr/models/recognition/` read-only; the standalone OCR image also includes this model.
 
 The first build downloads Flutter and Python dependencies, **not model weights**. The health endpoint confirms the API is listening; it does not load or validate the recognition model.
 
@@ -347,7 +344,6 @@ This runs the web container in the foreground with the existing same-origin OCR 
 docker build --platform linux/amd64 --target ocr -t obelens-ocr .
 docker run --rm --init --platform linux/amd64 \
   -p 127.0.0.1:8765:8765 \
-  --volume "$PWD/obelens-ocr/models/recognition:/app/models/recognition:ro" \
   obelens-ocr
 ```
 
@@ -357,19 +353,19 @@ To enable optional OCR bearer checking for this container, supply `-e OBELENS_OC
 
 **Dart defines are compile-time configuration.** Pass them to `flutter run` or `flutter build`; ordinary shell exports and `.env` files are not automatically read by the app. The existing source has Supabase defaults, but another installation should pass its own values explicitly.
 
-| Name | Scope | Purpose/default | Required |
-| --- | --- | --- | --- |
-| `SUPABASE_URL` | Dart define | Supabase project URL; example `https://YOUR-PROJECT.supabase.co` | For a different project's live workflow |
-| `SUPABASE_PUBLISHABLE_KEY` | Dart define | Client publishable key; example `YOUR_PUBLISHABLE_KEY` | With a custom project URL |
-| `OBELENS_LOCAL_PREVIEW` | Dart define | `false`; `true` uses in-memory Auth/workflow data | Optional |
-| `OCR_API_URL` | Dart define | Same web origin, desktop `http://127.0.0.1:8765`, or Android HTTP fallback `http://10.0.2.2:8765` | For a non-default HTTP endpoint |
-| `OCR_API_TOKEN` | Dart define | Unset; sent as a bearer token by the Python OCR client | If the server enables token checking |
-| `OCR_MODEL_ASSET` | Dart define | Android default `assets/ocr_model/inference.onnx` | For an alternate bundled compatible model |
-| `OBELENS_PORT` | Compose substitution | `8080`, published on `127.0.0.1` | Optional |
-| `OBELENS_OCR_TOKEN` | Python process/container environment | Unset; enables bearer validation on OCR POST requests | Optional for local use |
-| `PADDLE_PDX_CACHE_HOME` | Python process environment | Local server: `obelens-ocr/.cache/paddlex`; Docker: `/app/.cache/paddlex` | Optional override |
-| `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK` | Python process environment | Adapter defaults to `True` before loading PaddleOCR | Normally leave at the default |
-| `XDG_DATA_HOME` | Linux registration script | Defaults to `~/.local/share`; controls desktop-entry destination | Optional |
+| Name                                    | Scope                                | Purpose/default                                                                                   | Required                                  |
+| --------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `SUPABASE_URL`                          | Dart define                          | Supabase project URL; example `https://YOUR-PROJECT.supabase.co`                                  | For a different project's live workflow   |
+| `SUPABASE_PUBLISHABLE_KEY`              | Dart define                          | Client publishable key; example `YOUR_PUBLISHABLE_KEY`                                            | With a custom project URL                 |
+| `OBELENS_LOCAL_PREVIEW`                 | Dart define                          | `false`; `true` uses in-memory Auth/workflow data                                                 | Optional                                  |
+| `OCR_API_URL`                           | Dart define                          | Same web origin, desktop `http://127.0.0.1:8765`, or Android HTTP fallback `http://10.0.2.2:8765` | For a non-default HTTP endpoint           |
+| `OCR_API_TOKEN`                         | Dart define                          | Unset; sent as a bearer token by the Python OCR client                                            | If the server enables token checking      |
+| `OCR_MODEL_ASSET`                       | Dart define                          | Android default `assets/ocr_model/obelens.onnx`                                                   | For an alternate bundled compatible model |
+| `OBELENS_PORT`                          | Compose substitution                 | `8080`, published on `127.0.0.1`                                                                  | Optional                                  |
+| `OBELENS_OCR_TOKEN`                     | Python process/container environment | Unset; enables bearer validation on OCR POST requests                                             | Optional for local use                    |
+| `PADDLE_PDX_CACHE_HOME`                 | Python process environment           | Local server: `obelens-ocr/.cache/paddlex`; Docker: `/app/.cache/paddlex`                         | Optional override                         |
+| `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK` | Python process environment           | Adapter defaults to `True` before loading PaddleOCR                                               | Normally leave at the default             |
+| `XDG_DATA_HOME`                         | Linux registration script            | Defaults to `~/.local/share`; controls desktop-entry destination                                  | Optional                                  |
 
 Server arguments: `--host` (default `127.0.0.1`), `--port` (`8765`), `--model-dir` (local recognition directory), and `--confidence-threshold` (`0.8`). Container-build arguments `FLUTTER_VERSION` and `FLUTTER_SHA256` belong to the Docker toolchain download; they are not application settings.
 
@@ -386,15 +382,15 @@ erDiagram
     EXAMS o|--o{ RESULTS : scopes
 ```
 
-| Entity | Important data and relationships |
-| --- | --- |
-| `auth.users` | Supabase-managed identities; trusted administrator role in app metadata |
-| `profiles` | User-linked name/email and registration status: pending, approved, rejected; legacy approval compatibility |
-| `courses` | Course code/title, CO definitions and PO links in JSON, archive state, revision |
-| `offerings` | Course, academic year, term; unique per course/year/term |
-| `teaching_assignments` | Offering/teacher pairs; supports multiple teachers per offering |
-| `exams` | Offering, name, question-part mappings, required groups, attainment policy, revision |
-| `results` | Teacher/submission IDs, roll number, group, raw marks JSON, counted-question array, counted total, timestamps, revision, optional exam reference |
+| Entity                 | Important data and relationships                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `auth.users`           | Supabase-managed identities; trusted administrator role in app metadata                                                                          |
+| `profiles`             | User-linked name/email and registration status: pending, approved, rejected; legacy approval compatibility                                       |
+| `courses`              | Course code/title, CO definitions and PO links in JSON, archive state, revision                                                                  |
+| `offerings`            | Course, academic year, term; unique per course/year/term                                                                                         |
+| `teaching_assignments` | Offering/teacher pairs; supports multiple teachers per offering                                                                                  |
+| `exams`                | Offering, name, question-part mappings, required groups, attainment policy, revision                                                             |
+| `results`              | Teacher/submission IDs, roll number, group, raw marks JSON, counted-question array, counted total, timestamps, revision, optional exam reference |
 
 Each course-scoped result is unique on `(exam_id, roll_no, table_type)`. A student is represented by matching roll-number records within an exam, not by a separate student table. Old unassigned results have `exam_id = null` and stay separate from course attainment.
 
@@ -404,22 +400,22 @@ The current app saves through `save_question_group`: it validates access, resolv
 
 The Python service defaults to port **8765**. Under Compose, use the same paths through port **8080** (or `OBELENS_PORT`). These are OCR endpoints, not the Supabase database API.
 
-| Method | Endpoint | Purpose | Authentication |
-| --- | --- | --- | --- |
-| `GET` | `/health` | HTTP-service status and configured model name; no model warm-up | None |
-| `POST` | `/ocr/detect` | Suggest normalized table corners without recognition | Optional static bearer token |
-| `POST` | `/ocr/table` | Extract and recognize 28 cells for a question group | Optional static bearer token |
+| Method | Endpoint      | Purpose                                                         | Authentication               |
+| ------ | ------------- | --------------------------------------------------------------- | ---------------------------- |
+| `GET`  | `/health`     | HTTP-service status and configured model name; no model warm-up | None                         |
+| `POST` | `/ocr/detect` | Suggest normalized table corners without recognition            | Optional static bearer token |
+| `POST` | `/ocr/table`  | Extract and recognize 28 cells for a question group             | Optional static bearer token |
 
 ### Request fields
 
-| Field | Applies to | Meaning |
-| --- | --- | --- |
-| `image_base64` | Both POST endpoints | Required Base64-encoded image bytes |
-| `rotation` | Both | Optional `0`, `90`, `180`, or `270`; applied after EXIF orientation |
-| `table_type` | `/ocr/table` | `1-4` by default, or `5-8` |
-| `normalized_corners` | `/ocr/table` | Optional four `[x,y]` points in `[0,1]`, ordered top-left, top-right, bottom-right, bottom-left |
-| `corners` | `/ocr/table` | Alternative four pixel-coordinate corners; do not combine with normalized corners |
-| `max_mark` | `/ocr/table` | Optional common validation maximum; the current Flutter HTTP client does not send exam-specific cell maxima |
+| Field                | Applies to          | Meaning                                                                                                     |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `image_base64`       | Both POST endpoints | Required Base64-encoded image bytes                                                                         |
+| `rotation`           | Both                | Optional `0`, `90`, `180`, or `270`; applied after EXIF orientation                                         |
+| `table_type`         | `/ocr/table`        | `1-4` by default, or `5-8`                                                                                  |
+| `normalized_corners` | `/ocr/table`        | Optional four `[x,y]` points in `[0,1]`, ordered top-left, top-right, bottom-right, bottom-left             |
+| `corners`            | `/ocr/table`        | Alternative four pixel-coordinate corners; do not combine with normalized corners                           |
+| `max_mark`           | `/ocr/table`        | Optional common validation maximum; the current Flutter HTTP client does not send exam-specific cell maxima |
 
 Without explicit corners, table recognition attempts automatic extraction. Database/application validation later checks the exam's individual question-part maxima.
 
@@ -430,7 +426,12 @@ Example table request structure; the Base64 value and coordinates are illustrati
   "image_base64": "BASE64_IMAGE_BYTES",
   "table_type": "5-8",
   "rotation": 0,
-  "normalized_corners": [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
+  "normalized_corners": [
+    [0.1, 0.1],
+    [0.9, 0.1],
+    [0.9, 0.9],
+    [0.1, 0.9]
+  ]
 }
 ```
 
@@ -438,7 +439,7 @@ Detection returns `detected`, `normalized_corners` or `null`, `rotation`, `width
 
 Recognition returns `tableType`, `questions`, `cellMarks`, `cellResults`, `confidenceScore`, `needsReview`, `isVerified: false`, `scannedAt`, `tableCorners`, and `rotation`. Cell details include raw text, parsed value, confidence, review reason, bounds, and PNG crop evidence as Base64. A successful response contains all 28 cells; the teacher still reviews the result.
 
-Send the bundled sample through the Compose proxy from the repository root:
+Send your own table photograph through the Compose proxy from the repository root:
 
 ```bash
 python3 - <<'PY' > /tmp/obe-ocr-request.json
@@ -447,7 +448,7 @@ import json
 from pathlib import Path
 print(json.dumps({
     "image_base64": base64.b64encode(
-        Path("assets/sample_marksheet.png").read_bytes()).decode("ascii"),
+        Path("path/to/your-table.png").read_bytes()).decode("ascii"),
     "table_type": "1-4"
 }))
 PY
@@ -466,12 +467,12 @@ Limits: Flutter accepts images up to **10 MiB**; the API caps request JSON at **
 1. **Administrator:** sign in, review **Registrations**, approve teachers, and open **Manage courses**. Set CO descriptions/PO links, add year/term offerings, and assign approved teachers.
 2. **Teacher:** open **Assigned courses**, select an offering, and create or configure an exam. Map the active parts of Q1–Q8 to CO1–CO4 and set maxima, required groups, and attainment thresholds.
 3. Open **Scan**, enter the student's roll number, and select the question group. Camera/gallery input opens **Adjust Table**; check corners and rotation, then continue.
-4. Review the extracted marks and any flags. Correct values where needed; per-cell acknowledgment is not mandatory. On the submission summary, choose three questions only if all four have marks.
-5. Save. Different groups fill the same student worksheet row. A duplicate group requires a replacement decision; a failed save retains the reviewed work for retry.
+4. Review the extracted marks and any flags, then select **Verify & Submit**. Marks save automatically unless all four questions have answers; in that case, choose three on the submission summary and save. A duplicate group requires a replacement decision; a failed save retains the reviewed work for retry.
+5. After saving a part, a popup offers **Done** or **Scan other part** when another required part remains. **Done** returns to the exam page, where **Scan** asks for the next student's roll number. **Scan other part** opens the remaining group for the same student. After both parts are saved, the popup offers **Done** only. Different groups fill the same student worksheet row.
 6. Open **All results** to inspect the combined student row, counted questions, totals, percentage, and GPA. Four-answer results can reopen **Choose counted questions** with replacement confirmation.
 7. Open **Calculate attainment** for the student CO worksheet and CO/PO contributions. Review completeness/mapping issues before **Export to Excel**. Linux/Windows use Save As; other targets use the platform/browser share mechanism.
 
-## Preview and sample input
+## Local preview
 
 To inspect the workflow without configuring Supabase:
 
@@ -481,19 +482,19 @@ flutter run -d linux --dart-define=OBELENS_LOCAL_PREVIEW=true
 
 Use `-d chrome` for browser UI preview. This mode supplies in-memory accounts/course data and resets on restart. It still uses the normal OCR service if you scan; it is not an offline OCR mock.
 
-The repository includes the [app icon](assets/branding/obe_lens_icon.png) and a [sample handwritten marksheet](assets/sample_marksheet.png) used by checks. No application screenshot set, demonstration GIF, or verified hosted demo URL is provided. The marksheet is example OCR input, not a UI screenshot or an accuracy benchmark.
+The repository includes the [app icon](assets/branding/obe_lens_icon.png). Upload your own table photograph to scan. Automated checks generate synthetic table images; no handwritten sample sheet is bundled.
 
 ## Testing
 
 Run from the repository root unless stated otherwise:
 
-| Check | Command | Requirements/coverage |
-| --- | --- | --- |
-| Dart analysis | `flutter analyze` | Static checks and configured lints |
-| Flutter suite | `flutter test` | Auth/navigation, crop/review, marking rules, shared saves, GPA, reports, and exports; external services are generally replaced by fakes |
-| Local database suite | `bash scripts/test_workflow_db.sh` | PostgreSQL tools, Bash, Python 3; applies every migration in a disposable cluster and checks RLS, validation, idempotency, selections, stale replacements, and parallel teachers |
-| Desktop-link setup tests | `python3 -m unittest discover -s scripts -p 'test_desktop_links.py' -v` | Uses temporary paths and mocked OS registration |
-| Compose smoke test | `python3 docker/smoke_test.py` | Running Compose stack and supplied model; checks UI, proxy, detection, and real OCR |
+| Check                    | Command                                                                 | Requirements/coverage                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dart analysis            | `flutter analyze`                                                       | Static checks and configured lints                                                                                                                                               |
+| Flutter suite            | `flutter test`                                                          | Auth/navigation, crop/review, marking rules, shared saves, GPA, reports, and exports; external services are generally replaced by fakes                                          |
+| Local database suite     | `bash scripts/test_workflow_db.sh`                                      | PostgreSQL tools, Bash, Python 3; applies every migration in a disposable cluster and checks RLS, validation, idempotency, selections, stale replacements, and parallel teachers |
+| Desktop-link setup tests | `python3 -m unittest discover -s scripts -p 'test_desktop_links.py' -v` | Uses temporary paths and mocked OS registration                                                                                                                                  |
+| Compose smoke test       | `python3 docker/smoke_test.py path/to/your-table.png`                   | Running Compose stack and supplied model; checks UI, proxy, detection, and real OCR                                                                                              |
 
 Python unit/API tests, with the environment active:
 
@@ -510,7 +511,7 @@ Optional real-model integration test:
 flutter test test/ocr_service_test.dart --dart-define=OCR_INTEGRATION=true
 ```
 
-It is skipped by default and expects the Unix-style `.venv/bin/python` path at the repository root plus the local Paddle model; the harness does not resolve a native Windows virtual-environment path. It starts a temporary Python API and checks the Dart-to-Python scan path.
+It is skipped by default and expects the Unix-style `.venv/bin/python` path at the repository root plus the bundled fine-tuned model; the harness does not resolve a native Windows virtual-environment path. It starts a temporary Python API and checks the Dart-to-Python scan path.
 
 Optional Android/Python detector parity check:
 
@@ -536,12 +537,12 @@ CI currently does not run the Python OCR suite, optional real-model integration,
 
 Include the same `--dart-define` settings used during development in release builds; they are embedded at build time.
 
-| Target | Command | Output |
-| --- | --- | --- |
-| Android | `flutter build apk --release` | `build/app/outputs/flutter-apk/app-release.apk` |
-| Linux | `flutter build linux --release` | `build/linux/x64/release/bundle/` |
-| Windows, on Windows | `flutter build windows --release` | `build/windows/x64/runner/Release/` |
-| Web | `flutter build web --release` | `build/web/` |
+| Target              | Command                           | Output                                          |
+| ------------------- | --------------------------------- | ----------------------------------------------- |
+| Android             | `flutter build apk --release`     | `build/app/outputs/flutter-apk/app-release.apk` |
+| Linux               | `flutter build linux --release`   | `build/linux/x64/release/bundle/`               |
+| Windows, on Windows | `flutter build windows --release` | `build/windows/x64/runner/Release/`             |
+| Web                 | `flutter build web --release`     | `build/web/`                                    |
 
 Distribute the complete Linux bundle or Windows release directory, including its `data/` and library files. The executable alone is insufficient. Desktop OCR also needs the Python API; it is not bundled into the native executable.
 
@@ -572,21 +573,21 @@ Before public deployment:
 
 ## Troubleshooting
 
-| Symptom | Check or action |
-| --- | --- |
-| Signup succeeds but login/session is unavailable | Confirm the email if required; then check registration approval. Pending/rejected accounts cannot enter the teacher workflow. |
-| Course list is empty | Confirm approval and assignment to the correct year/term offering. Sharing a course code alone does not assign its offerings. |
-| Save RPC or `selected_questions` is missing | Apply all pending migrations, including both `20261127...` files. Rebuild the client with the intended Supabase settings. |
-| Duplicate upload produces a conflict | Choose Replace/Keep. If the version changed, review the refreshed prompt; do not bypass the revision check. |
-| Four-answer legacy result has pending totals/attainment | Open its details and choose the three counted questions. |
-| Missing model or `OCR inference failed` | Supply all three compatible Paddle inference files, check `--model-dir`/the read-only mount, then restart OCR. `/health` alone does not test model loading. |
-| Browser API call fails despite a reachable server | Keep UI and `/ocr/` behind the same origin. The Python API does not implement CORS/preflight. |
-| Environment changes have no effect | Distinguish Dart compile-time defines, Python runtime variables, and Compose substitution; rebuild or restart the appropriate component. |
-| A photograph is rejected | Use PNG/JPEG within 10 MiB and 25 megapixels; include one complete, readable rubric with all rows inside the selected corners. |
-| Detection fails | Adjust corners manually, rotate upright, or capture a clearer image. Arbitrary table layouts are unsupported. |
-| Password-reset link does not open the app | Check hosted redirect URLs and desktop handler registration; register again after moving the executable. |
-| Native tests/builds fail | Run `flutter doctor -v`; install the required platform toolchain. Database/API tests also require permission to create local sockets. |
-| Spreadsheet format warning | Exports are SpreadsheetML XML using `.xls`, not an `.xlsx` ZIP workbook. Open/import with a compatible spreadsheet application. |
+| Symptom                                                 | Check or action                                                                                                                                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Signup succeeds but login/session is unavailable        | Confirm the email if required; then check registration approval. Pending/rejected accounts cannot enter the teacher workflow.                                                                                       |
+| Course list is empty                                    | Confirm approval and assignment to the correct year/term offering. Sharing a course code alone does not assign its offerings.                                                                                       |
+| Save RPC or `selected_questions` is missing             | Apply all pending migrations, including both `20261127...` files. Rebuild the client with the intended Supabase settings.                                                                                           |
+| Duplicate upload produces a conflict                    | Choose Replace/Keep. If the version changed, review the refreshed prompt; do not bypass the revision check.                                                                                                         |
+| Four-answer legacy result has pending totals/attainment | Open its details and choose the three counted questions.                                                                                                                                                            |
+| Missing model or `OCR inference failed`                 | Check `inference.onnx` and `inference.yml` in `obelens-ocr/models/recognition/` (or `--model-dir`/the read-only mount), install Python requirements, then restart OCR. `/health` alone does not test model loading. |
+| Browser API call fails despite a reachable server       | Keep UI and `/ocr/` behind the same origin. The Python API does not implement CORS/preflight.                                                                                                                       |
+| Environment changes have no effect                      | Distinguish Dart compile-time defines, Python runtime variables, and Compose substitution; rebuild or restart the appropriate component.                                                                            |
+| A photograph is rejected                                | Use PNG/JPEG within 10 MiB and 25 megapixels; include one complete, readable rubric with all rows inside the selected corners.                                                                                      |
+| Detection fails                                         | Adjust corners manually, rotate upright, or capture a clearer image. Arbitrary table layouts are unsupported.                                                                                                       |
+| Password-reset link does not open the app               | Check hosted redirect URLs and desktop handler registration; register again after moving the executable.                                                                                                            |
+| Native tests/builds fail                                | Run `flutter doctor -v`; install the required platform toolchain. Database/API tests also require permission to create local sockets.                                                                               |
+| Spreadsheet format warning                              | Exports are SpreadsheetML XML using `.xls`, not an `.xlsx` ZIP workbook. Open/import with a compatible spreadsheet application.                                                                                     |
 
 ## Known limitations and suggested improvements
 
