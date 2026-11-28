@@ -7,12 +7,24 @@ import onnxruntime as ort
 from PIL import Image, ImageDraw, ImageFont
 
 from ocr import MarkRecognizer
+from ocr.full_table import process_table
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class ObelensModelTests(unittest.TestCase):
+    def test_captured_q5_q8_photo_reads_marks_in_the_correct_cells(self):
+        payload = process_table(
+            ROOT/'obelens-ocr/tests/fixtures/answer_table_q5_q8.jpg',
+            MarkRecognizer(), table_type='5-8',
+        )
+        expected = {str(q): {part: 'N/A' for part in 'abcdefg'} for q in range(5,9)}
+        expected['5'].update(a='13',b='07',c='08')
+        expected['7'].update(a='05',c='07',d='06')
+        expected['8'].update(a='09',b='11',c='06')
+        self.assertEqual(payload['cellMarks'],expected)
+
     def test_android_and_service_use_identical_model(self):
         self.assertEqual(
             (ROOT / 'assets/ocr_model/obelens.onnx').read_bytes(),

@@ -7,11 +7,13 @@ class EditMarkDialog extends StatefulWidget {
   final String part;
   final String value;
   final CellOcrResult result;
+  final int? maxMark;
   const EditMarkDialog(
       {super.key,
       required this.question,
       required this.part,
       required this.value,
+      this.maxMark,
       required this.result});
 
   @override
@@ -21,6 +23,7 @@ class EditMarkDialog extends StatefulWidget {
 class _EditMarkDialogState extends State<EditMarkDialog> {
   late final TextEditingController _controller;
   final _form = GlobalKey<FormState>();
+  int? get _maximum => widget.maxMark ?? widget.result.maxMark;
 
   @override
   void initState() {
@@ -73,16 +76,15 @@ class _EditMarkDialogState extends State<EditMarkDialog> {
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
                           labelText: 'Mark',
-                          helperText: widget.result.maxMark == null
+                          helperText: _maximum == null
                               ? 'One or two digits'
-                              : 'Maximum ${widget.result.maxMark}'),
+                              : 'Maximum $_maximum'),
                       validator: (value) {
                         final text = value?.trim() ?? '';
                         if (!RegExp(r'^[0-9]{1,2}$').hasMatch(text)) {
                           return 'Enter one or two digits, or set N/A.';
                         }
-                        if (widget.result.maxMark != null &&
-                            int.parse(text) > widget.result.maxMark!) {
+                        if (_maximum != null && int.parse(text) > _maximum!) {
                           return 'Exceeds the maximum mark.';
                         }
                         return null;

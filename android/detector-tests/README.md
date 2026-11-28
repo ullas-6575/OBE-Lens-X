@@ -3,10 +3,14 @@
 This runner compiles the **production** `TableDetector.kt` and executes its OpenCV
 operations on the same PNG pixels used by the Python detector. Synthetic fixtures
 have independent expected corners; the generator checks those before exporting
-Linux results. Tests compare detection/fallback decisions and corners within four
-working-image pixels. Fixtures include broken outer borders, perspective,
+Linux results. The supplied Q5–Q8 photo also checks the real captured layout,
+with a 28-pixel annotation tolerance for its bent outer border. Tests compare
+detection/fallback decisions and corners within four working-image pixels. Fixtures include broken outer borders, perspective,
 missing internal lines, a Grand Total extension, noise/shadows, large camera
-images and non-table negatives.
+images, rotated broken grids, curved paper, combined curvature/rotation,
+thin faint printing, an attached Grand Total box, and non-table negatives.
+The runner also compares all 28 reconstructed cell crops
+against Python, including image dimensions and mean pixel differences.
 
 From the repository root:
 

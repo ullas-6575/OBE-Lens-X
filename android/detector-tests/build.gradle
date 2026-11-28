@@ -23,6 +23,7 @@ tasks.register('generateFixtures', Exec) {
         'obelens-ocr/scripts/generate_detection_fixtures.py', fixtures.path
     inputs.file new File(repo, 'obelens-ocr/scripts/generate_detection_fixtures.py')
     inputs.dir new File(repo, 'obelens-ocr/ocr')
+    inputs.dir new File(repo, 'obelens-ocr/tests/fixtures')
     outputs.dir fixtures
 }
 test {

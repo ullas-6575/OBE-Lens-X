@@ -2,9 +2,7 @@ package com.example.my_app
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.graphics.Matrix
-import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
@@ -19,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Mat
+import org.opencv.core.Point
 import org.opencv.imgproc.Imgproc
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -133,13 +132,18 @@ class MainActivity : FlutterActivity() {
 		val source = loadImage(imagePath, rotation)
 		var warpedBitmap: Bitmap? = null
 		try {
-			val warped = rectify(source, corners).also { warpedBitmap = it }
+			val grid = rectify(source, corners)
+			val rgba = Mat()
+			val warped = try {
+				Bitmap.createBitmap(grid.image.cols(), grid.image.rows(), Bitmap.Config.ARGB_8888).also {
+					warpedBitmap = it
+					Imgproc.cvtColor(grid.image, rgba, Imgproc.COLOR_BGR2RGBA)
+					Utils.matToBitmap(rgba, it)
+				}
+			} finally { grid.image.release(); rgba.release() }
 			val questions = if (tableType == "1-4") listOf("1", "2", "3", "4")
 				else if (tableType == "5-8") listOf("5", "6", "7", "8")
 				else throw IllegalArgumentException("Unsupported table type")
-			val xRatios = doubleArrayOf(0.0, 115.0 / 379, 183.0 / 379, 252.0 / 379, 320.0 / 379, 1.0)
-			val yRatios = doubleArrayOf(0.0, 96.0 / 526, 150.0 / 526, 202.0 / 526, 255.0 / 526,
-				308.0 / 526, 361.0 / 526, 414.0 / 526, 474.0 / 526, 1.0)
 			val marks = mutableMapOf<String, MutableMap<String, String>>()
 			val details = mutableMapOf<String, MutableMap<String, Map<String, Any?>>>()
 			val scores = mutableListOf<Double>()
@@ -149,10 +153,10 @@ class MainActivity : FlutterActivity() {
 				val questionMarks = mutableMapOf<String, String>()
 				val questionDetails = mutableMapOf<String, Map<String, Any?>>()
 				parts.forEachIndexed { partIndex, part ->
-					val x1 = (xRatios[questionIndex + 1] * warped.width).toInt()
-					val x2 = (xRatios[questionIndex + 2] * warped.width).toInt()
-					val y1 = (yRatios[partIndex + 1] * warped.height).toInt()
-					val y2 = (yRatios[partIndex + 2] * warped.height).toInt()
+					val x1 = grid.xs[questionIndex + 1]
+					val x2 = grid.xs[questionIndex + 2]
+					val y1 = grid.ys[partIndex + 1]
+					val y2 = grid.ys[partIndex + 2]
 					val padding = maxOf(3, ((minOf(x2 - x1, y2 - y1)) * .07).toInt())
 					val cell = Bitmap.createBitmap(
 						warped, x1 + padding, y1 + padding,
@@ -245,22 +249,21 @@ class MainActivity : FlutterActivity() {
 		super.onDestroy()
 	}
 
-	private fun rectify(bitmap: Bitmap, rawCorners: List<*>): Bitmap {
+	private fun rectify(bitmap: Bitmap, rawCorners: List<*>): TableDetector.Grid {
 		require(rawCorners.size == 4) { "Four table corners are required" }
-		val source = FloatArray(8)
-		rawCorners.forEachIndexed { index, pair ->
+		check(OpenCVLoader.initLocal()) { "Could not initialize table extraction" }
+		val points = rawCorners.map { pair ->
 			val point = pair as List<*>
-			source[index * 2] = (point[0] as Number).toFloat() * (bitmap.width - 1)
-			source[index * 2 + 1] = (point[1] as Number).toFloat() * (bitmap.height - 1)
-		}
-		val destination = floatArrayOf(0f, 0f, 1000f, 0f, 1000f, 1400f, 0f, 1400f)
-		val matrix = Matrix()
-		check(matrix.setPolyToPoly(source, 0, destination, 0, 4)) {
-			"Could not rectify the selected table"
-		}
-		return Bitmap.createBitmap(1000, 1400, Bitmap.Config.ARGB_8888).also {
-			Canvas(it).drawBitmap(bitmap, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
-		}
+			Point((point[0] as Number).toDouble() * (bitmap.width - 1),
+				(point[1] as Number).toDouble() * (bitmap.height - 1))
+		}.toTypedArray()
+		val rgba = Mat()
+		val bgr = Mat()
+		try {
+			Utils.bitmapToMat(bitmap, rgba)
+			Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
+			return TableDetector.rectify(bgr, points)
+		} finally { rgba.release(); bgr.release() }
 	}
 
 	private fun isBlank(bitmap: Bitmap): Boolean {

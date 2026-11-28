@@ -185,7 +185,10 @@ class CellOcrResult {
       this.maxMark});
   bool get isEmpty => empty || reason == 'empty_cell';
   bool get needsAttention =>
-      !isEmpty && text.trim().isNotEmpty && !MarksTableData.isNumericMark(text);
+      !isEmpty &&
+      text.trim().isNotEmpty &&
+      (!MarksTableData.isNumericMark(text) ||
+          (maxMark != null && int.parse(text.trim()) > maxMark!));
   factory CellOcrResult.fromJson(Map<String, dynamic> json) => CellOcrResult(
       text: json['text'] as String,
       confidence: (json['confidence'] as num).toDouble(),
