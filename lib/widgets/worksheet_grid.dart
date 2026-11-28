@@ -26,7 +26,13 @@ class WorksheetGrid extends StatelessWidget {
     final dataWidths = keyValue
         ? [220.0, 360.0]
         : rows.first.first == 'Roll'
-            ? [150.0, ...List.filled(columnCount - 1, 80.0)]
+            ? [
+                150.0,
+                for (final heading in rows.first.skip(1))
+                  heading == 'Total Obtained Marks' || heading == 'Total Marks'
+                      ? 180.0
+                      : 80.0,
+              ]
             : switch (columnCount) {
                 5 when rows.first.first == 'Roll no' => [
                     150.0,

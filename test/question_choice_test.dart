@@ -103,11 +103,36 @@ void main() {
     ]);
     expect(pending.exportable, isFalse);
   });
-  test('Worksheet preserves raw marks and states which three were counted', () {
+  test('Worksheet preserves raw marks and shows only obtained and total marks',
+      () {
     final sheet = resultsWorksheet(exam, [
       row(['1', '2', '3', '9'], ['1', '2', '3'])
     ]);
-    expect(sheet[1], ['ROLL001', '1', '2', '3', '9', 'Q1, Q2, Q3', '6', '30']);
+    expect(sheet.first, [
+      'Roll',
+      '1a',
+      '2a',
+      '3a',
+      '4a',
+      'Total Obtained Marks',
+      'Total Marks'
+    ]);
+    expect(sheet[1], ['ROLL001', '1', '2', '3', '9', '6', '30']);
+    final excel = resultsExcelXml(exam, [
+      row(['1', '2', '3', '9'], ['1', '2', '3'])
+    ]);
+    expect(excel, contains('Total Obtained Marks'));
+    expect(excel, contains('Total Marks'));
+    expect(excel, isNot(contains('Counted Q')));
+    expect(excel, isNot(contains('Q1, Q2, Q3')));
+  });
+
+  test('Worksheet totals stay pending until counted questions are selected',
+      () {
+    final sheet = resultsWorksheet(exam, [
+      row(['1', '2', '3', '9'])
+    ]);
+    expect(sheet[1], ['ROLL001', '1', '2', '3', '9', 'Pending', 'Pending']);
   });
 
   for (final answered in [2, 3, 4]) {
